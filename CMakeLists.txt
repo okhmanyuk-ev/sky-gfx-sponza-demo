@@ -17,7 +17,9 @@ set(LIBS_FOLDER "libs")
 add_executable(${PROJECT_NAME} src/main.cpp)
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
-
+set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_definitions(-DNOMINMAX)
+	
 # sky-gfx
 
 add_subdirectory(lib/sky-gfx)
@@ -32,3 +34,14 @@ add_subdirectory(lib/sky-gfx/examples/lib/glfw)
 set_property(TARGET glfw PROPERTY FOLDER ${LIBS_FOLDER}/glfw)
 set_property(TARGET update_mappings PROPERTY FOLDER ${LIBS_FOLDER}/glfw)
 target_link_libraries(${PROJECT_NAME} glfw)
+
+# assimp
+
+set(ASSIMP_INSTALL OFF)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
+add_subdirectory(lib/assimp)
+target_link_libraries(${PROJECT_NAME} assimp)
+set_property(TARGET assimp PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
+set_property(TARGET UpdateAssimpLibsDebugSymbolsAndDLLs PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
+set_property(TARGET unit PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
+set_property(TARGET zlibstatic PROPERTY FOLDER ${LIBS_FOLDER}/assimp)

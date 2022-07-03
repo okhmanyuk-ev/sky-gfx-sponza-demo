@@ -3,6 +3,9 @@
 #include <skygfx/skygfx.h>
 #include "../lib/sky-gfx/examples/utils/utils.h"
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+
 static std::string vertex_shader_code = R"(
 #version 450 core
 
@@ -65,6 +68,10 @@ int main()
 	auto native_window = utils::GetNativeWindow(window);
 
 	auto device = skygfx::Device(backend_type, native_window, width, height);
+	
+	auto importer = Assimp::Importer();
+	auto sponza = importer.ReadFile("assets/sponza/sponza.obj", 0);
+
 	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code);
 
 	auto viewport = skygfx::Viewport();
