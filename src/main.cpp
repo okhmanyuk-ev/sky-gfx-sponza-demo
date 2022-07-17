@@ -2,9 +2,7 @@
 
 #include <skygfx/skygfx.h>
 #include "../lib/sky-gfx/examples/utils/utils.h"
-
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
+#include <tiny_gltf.h>
 
 static std::string vertex_shader_code = R"(
 #version 450 core
@@ -68,24 +66,70 @@ int main()
 	auto native_window = utils::GetNativeWindow(window);
 
 	auto device = skygfx::Device(backend_type, native_window, width, height);
-	
-	auto importer = Assimp::Importer();
-	auto sponza = importer.ReadFile("assets/sponza/sponza.obj", 0);
-
 	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code);
 
-	auto viewport = skygfx::Viewport();
-	viewport.size = { static_cast<float>(width), static_cast<float>(height) };
+	tinygltf::Model model;
+	tinygltf::TinyGLTF loader;
+	std::string err;
+	std::string warn;
+	auto path = "assets/sponza/sponza.glb";
+
+	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
 	while (!glfwWindowShouldClose(window))
 	{
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setTopology(skygfx::Topology::TriangleList);
-		device.setViewport(viewport);
 		device.setShader(shader);
 		device.setVertexBuffer(vertices);
 		device.setIndexBuffer(indices);
 		device.drawIndexed(static_cast<uint32_t>(indices.size()));
+
+		// https://github.com/syoyo/tinygltf/blob/master/examples/glview/glview.cc
+		// https://github.com/syoyo/tinygltf/blob/master/examples/basic/main.cpp
+
+		const auto& scene = model.scenes.at(0);
+
+		for (auto node_index : scene.nodes)
+		{
+			const auto& node = model.nodes.at(node_index);
+
+			auto mesh_index = node.mesh;
+
+			const auto& mesh = model.meshes.at(mesh_index);
+
+			for (const auto& primitive : mesh.primitives)
+			{
+				static const std::unordered_map<int, skygfx::Topology> ModesMap = {
+					{ TINYGLTF_MODE_POINTS, skygfx::Topology::PointList },
+					{ TINYGLTF_MODE_LINE, skygfx::Topology::LineList },
+				//	{ TINYGLTF_MODE_LINE_LOOP, skygfx::Topology:: },
+					{ TINYGLTF_MODE_LINE_STRIP, skygfx::Topology::LineStrip },
+					{ TINYGLTF_MODE_TRIANGLES, skygfx::Topology::TriangleList },
+					{ TINYGLTF_MODE_TRIANGLE_STRIP, skygfx::Topology::TriangleStrip },
+				//	{ TINYGLTF_MODE_TRIANGLE_FAN, skygfx::Topology:: } 
+				};
+
+				auto topology = ModesMap.at(primitive.mode);
+
+				device.setTopology(topology);
+
+				const auto& accessor = model.accessors.at(primitive.indices);
+
+				auto index_count = accessor.count;
+				auto index_type = accessor.componentType;
+				auto index_offset = 0;
+
+
+
+				device.drawIndexed(index_count, index_offset);
+
+			}
+
+			// TODO: dont forget to draw childrens of node
+		}
+
+
 		device.present();
 
 		glfwPollEvents();

@@ -35,13 +35,11 @@ set_property(TARGET glfw PROPERTY FOLDER ${LIBS_FOLDER}/glfw)
 set_property(TARGET update_mappings PROPERTY FOLDER ${LIBS_FOLDER}/glfw)
 target_link_libraries(${PROJECT_NAME} glfw)
 
-# assimp
+# tinygltf
 
-set(ASSIMP_INSTALL OFF)
-set(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
-add_subdirectory(lib/assimp)
-target_link_libraries(${PROJECT_NAME} assimp)
-set_property(TARGET assimp PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
-set_property(TARGET UpdateAssimpLibsDebugSymbolsAndDLLs PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
-set_property(TARGET unit PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
-set_property(TARGET zlibstatic PROPERTY FOLDER ${LIBS_FOLDER}/assimp)
+set(TINYGLTF_HEADER_ONLY OFF CACHE INTERNAL "" FORCE)
+set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
+set(TINYGLTF_BUILD_LOADER_EXAMPLE OFF CACHE INTERNAL "" FORCE)
+add_subdirectory(lib/tinygltf)
+target_link_libraries(${PROJECT_NAME} tinygltf)
+set_property(TARGET tinygltf PROPERTY FOLDER ${LIBS_FOLDER})
