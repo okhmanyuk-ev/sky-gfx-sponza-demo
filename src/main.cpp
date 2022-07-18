@@ -45,6 +45,29 @@ static struct alignas(16) UniformBuffer
 	glm::mat4 model = glm::mat4(1.0f);
 } ubo;
 
+static double cursor_saved_pos_x = 0.0;
+static double cursor_saved_pos_y = 0.0;
+static bool cursor_is_interacting = false;
+
+void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+	if (button == GLFW_MOUSE_BUTTON_LEFT)
+	{
+		if (action == GLFW_PRESS)
+		{
+			cursor_is_interacting = true;
+			glfwGetCursorPos(window, &cursor_saved_pos_x, &cursor_saved_pos_y);
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+		}
+		else if (action == GLFW_RELEASE)
+		{
+			cursor_is_interacting = false;
+			glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		}
+	}
+}
+
 int main()
 {
 	//auto backend_type = utils::ChooseBackendTypeViaConsole();
@@ -69,6 +92,8 @@ int main()
 	glfwSetWindowPos(window, window_pos_x, window_pos_y);
 	glfwMakeContextCurrent(window);
 
+	glfwSetMouseButtonCallback(window, MouseButtonCallback);
+
 	auto native_window = utils::GetNativeWindow(window);
 
 	auto device = skygfx::Device(backend_type, native_window, width, height);
@@ -82,14 +107,48 @@ int main()
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
-	const auto yaw = 0.0f;
-	const auto pitch = glm::radians(-25.0f);
-	const auto position = glm::vec3{ -500.0f, 200.0f, 0.0f };
-
-	std::tie(ubo.view, ubo.projection) = utils::CalculatePerspectiveViewProjection(yaw, pitch, position, width, height);
+	auto yaw = 0.0f;
+	auto pitch = glm::radians(-25.0f);
+	auto position = glm::vec3{ -500.0f, 200.0f, 0.0f };
 
 	while (!glfwWindowShouldClose(window))
 	{
+		if (cursor_is_interacting)
+		{
+			double x = 0.0;
+			double y = 0.0;
+
+			glfwGetCursorPos(window, &x, &y);
+
+			auto dx = x - cursor_saved_pos_x;
+			auto dy = y - cursor_saved_pos_y;
+
+			const auto sensitivity = 0.25f;
+
+			dx *= sensitivity;
+			dy *= sensitivity;
+
+			yaw += glm::radians(static_cast<float>(dx));
+			pitch -= glm::radians(static_cast<float>(dy));
+
+			const float limit = glm::pi<float>() / 2.0f - 0.01f;
+
+			pitch = fmaxf(-limit, pitch);
+			pitch = fminf(+limit, pitch);
+
+			auto pi = glm::pi<float>();
+
+			while (yaw > pi)
+				yaw -= pi * 2.0f;
+
+			while (yaw < -pi)
+				yaw += pi * 2.0f;
+
+			glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
+		}
+
+		std::tie(ubo.view, ubo.projection) = utils::CalculatePerspectiveViewProjection(yaw, pitch, position, width, height);
+
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setTopology(skygfx::Topology::TriangleList);
 		device.setShader(shader);
@@ -158,7 +217,7 @@ int main()
 				vertex_buffer.data = (void*)((size_t)positions_buffer.data.data() + positions_buffer_view.byteOffset);
 				device.setVertexBuffer(vertex_buffer);
 
-				device.setTopology(skygfx::Topology::LineStrip);
+				device.setTopology(skygfx::Topology::LineList);
 				device.drawIndexed(index_count, index_offset);
 			}
 
