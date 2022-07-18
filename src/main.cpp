@@ -108,8 +108,8 @@ int main()
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
 	auto yaw = 0.0f;
-	auto pitch = glm::radians(-25.0f);
-	auto position = glm::vec3{ -500.0f, 200.0f, 0.0f };
+	auto pitch = 0.0f;
+	glm::vec3 position = { 0.0f, 0.0f, 0.0f };
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -131,7 +131,7 @@ int main()
 			yaw += glm::radians(static_cast<float>(dx));
 			pitch -= glm::radians(static_cast<float>(dy));
 
-			const float limit = glm::pi<float>() / 2.0f - 0.01f;
+			constexpr auto limit = glm::pi<float>() / 2.0f - 0.01f;
 
 			pitch = fmaxf(-limit, pitch);
 			pitch = fminf(+limit, pitch);
@@ -147,12 +147,68 @@ int main()
 			glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
 		}
 
-		std::tie(ubo.view, ubo.projection) = utils::CalculatePerspectiveViewProjection(yaw, pitch, position, width, height);
+		static auto before = glfwGetTime();
+		auto now = glfwGetTime();
+		auto dtime = now - before;
+		before = now;
+
+		auto speed = (float)dtime * 500.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+			speed *= 3.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+			speed /= 3.0f;
+
+		glm::vec2 direction = { 0.0f, 0.0f };
+
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+			direction.y = 1.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+			direction.y = -1.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+			direction.x = -1.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+			direction.x = 1.0f;
+
+		if (glm::length(direction) > 0.0f)
+		{
+			direction = glm::normalize(direction);
+			direction *= speed;
+		}
+
+		auto sin_yaw = glm::sin(yaw);
+		auto sin_pitch = glm::sin(pitch);
+
+		auto cos_yaw = glm::cos(yaw);
+		auto cos_pitch = glm::cos(pitch);
+
+		const float fov = 70.0f;
+		const float near_plane = 1.0f;
+		const float far_plane = 8192.0f;
+		const glm::vec3 world_up = { 0.0f, 1.0f, 0.0f };
+
+		auto front = glm::normalize(glm::vec3(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch));
+		auto right = glm::normalize(glm::cross(front, world_up));
+		auto up = glm::normalize(glm::cross(right, front));
+
+		if (glm::length(direction) > 0.0f)
+		{
+			position += front * direction.y;
+			position += right * direction.x;
+		}
+
+		ubo.view = glm::lookAtRH(position, position + front, up);
+		ubo.projection = glm::perspectiveFov(fov, (float)width, (float)height, near_plane, far_plane);
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setTopology(skygfx::Topology::TriangleList);
 		device.setShader(shader);
 		device.setUniformBuffer(1, ubo);
+		device.setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::Less });
 
 		// https://github.com/syoyo/tinygltf/blob/master/examples/glview/glview.cc
 		// https://github.com/syoyo/tinygltf/blob/master/examples/basic/main.cpp
@@ -217,7 +273,7 @@ int main()
 				vertex_buffer.data = (void*)((size_t)positions_buffer.data.data() + positions_buffer_view.byteOffset);
 				device.setVertexBuffer(vertex_buffer);
 
-				device.setTopology(skygfx::Topology::LineList);
+				//device.setTopology(skygfx::Topology::LineList);
 				device.drawIndexed(index_count, index_offset);
 			}
 
