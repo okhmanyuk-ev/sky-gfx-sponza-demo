@@ -8,15 +8,21 @@ static std::string vertex_shader_code = R"(
 #version 450 core
 
 layout(location = POSITION_LOCATION) in vec3 aPosition;
-layout(location = COLOR_LOCATION) in vec4 aColor;
 
 layout(location = 0) out struct { vec4 Color; } Out;
 out gl_PerVertex { vec4 gl_Position; };
 
+layout(binding = 1) uniform _ubo
+{
+	mat4 projection;
+	mat4 view;
+	mat4 model;
+} ubo;
+
 void main()
 {
-	Out.Color = aColor;
-	gl_Position = vec4(aPosition, 1.0);
+	Out.Color = normalize(vec4(aPosition, 1.0));
+	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(aPosition, 1.0);
 })";
 
 static std::string fragment_shader_code = R"(
@@ -30,19 +36,19 @@ void main()
 	result = In.Color;
 })";
 
-using Vertex = skygfx::Vertex::PositionColor;
+using Vertex = skygfx::Vertex::Position;
 
-static std::vector<Vertex> vertices = {
-	{ {  0.5f, -0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
-	{ { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-	{ {  0.0f,  0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-};
-
-static std::vector<uint32_t> indices = { 0, 1, 2 };
+static struct alignas(16) UniformBuffer
+{
+	glm::mat4 projection = glm::mat4(1.0f);
+	glm::mat4 view = glm::mat4(1.0f);
+	glm::mat4 model = glm::mat4(1.0f);
+} ubo;
 
 int main()
 {
-	auto backend_type = utils::ChooseBackendTypeViaConsole();
+	//auto backend_type = utils::ChooseBackendTypeViaConsole();
+	auto backend_type = skygfx::BackendType::D3D11;
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -76,14 +82,18 @@ int main()
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
+	const auto yaw = 0.0f;
+	const auto pitch = glm::radians(-25.0f);
+	const auto position = glm::vec3{ -500.0f, 200.0f, 0.0f };
+
+	std::tie(ubo.view, ubo.projection) = utils::CalculatePerspectiveViewProjection(yaw, pitch, position, width, height);
+
 	while (!glfwWindowShouldClose(window))
 	{
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setTopology(skygfx::Topology::TriangleList);
 		device.setShader(shader);
-		device.setVertexBuffer(vertices);
-		device.setIndexBuffer(indices);
-		device.drawIndexed(static_cast<uint32_t>(indices.size()));
+		device.setUniformBuffer(1, ubo);
 
 		// https://github.com/syoyo/tinygltf/blob/master/examples/glview/glview.cc
 		// https://github.com/syoyo/tinygltf/blob/master/examples/basic/main.cpp
@@ -116,14 +126,40 @@ int main()
 
 				const auto& accessor = model.accessors.at(primitive.indices);
 
+				const static std::unordered_map<int, int> IndexStride = {
+					{ TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT, 2 },
+					{ TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT, 4 },
+				};
+
 				auto index_count = accessor.count;
-				auto index_type = accessor.componentType;
 				auto index_offset = 0;
 
+				/* buffer_view.target is:
+					TINYGLTF_TARGET_ARRAY_BUFFER,
+					TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER
+				*/
 
+				const auto& buffer_view = model.bufferViews.at(accessor.bufferView);
+				const auto& buffer = model.buffers.at(buffer_view.buffer);
 
+				skygfx::Buffer index_buffer;
+				index_buffer.size = buffer_view.byteLength;
+				index_buffer.stride = IndexStride.at(accessor.componentType);
+				index_buffer.data = (void*)((size_t)buffer.data.data() + buffer_view.byteOffset);
+				device.setIndexBuffer(index_buffer);
+
+				const auto& positions_buffer_accessor = model.accessors.at(primitive.attributes.at("POSITION"));
+				const auto& positions_buffer_view = model.bufferViews.at(positions_buffer_accessor.bufferView);
+				const auto& positions_buffer = model.buffers.at(positions_buffer_view.buffer);
+
+				skygfx::Buffer vertex_buffer;
+				vertex_buffer.size = positions_buffer_view.byteLength;
+				vertex_buffer.stride = 4; // sizeof float
+				vertex_buffer.data = (void*)((size_t)positions_buffer.data.data() + positions_buffer_view.byteOffset);
+				device.setVertexBuffer(vertex_buffer);
+
+				device.setTopology(skygfx::Topology::LineStrip);
 				device.drawIndexed(index_count, index_offset);
-
 			}
 
 			// TODO: dont forget to draw childrens of node
