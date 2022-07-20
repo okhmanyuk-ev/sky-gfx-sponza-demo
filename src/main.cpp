@@ -239,44 +239,45 @@ int main()
 
 				device.setTopology(topology);
 
-				const auto& accessor = model.accessors.at(primitive.indices);
 
 				const static std::unordered_map<int, int> IndexStride = {
 					{ TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT, 2 },
 					{ TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT, 4 },
 				};
 
-				auto index_count = accessor.count;
-				auto index_offset = 0;
-
 				/* buffer_view.target is:
 					TINYGLTF_TARGET_ARRAY_BUFFER,
 					TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER
 				*/
 
-				const auto& buffer_view = model.bufferViews.at(accessor.bufferView);
-				const auto& buffer = model.buffers.at(buffer_view.buffer);
+				const auto& index_buffer_accessor = model.accessors.at(primitive.indices);
+				const auto& index_buffer_view = model.bufferViews.at(index_buffer_accessor.bufferView);
+				const auto& index_buffer = model.buffers.at(index_buffer_view.buffer);
 
-				skygfx::Buffer index_buffer;
-				index_buffer.size = buffer_view.byteLength;
-				index_buffer.stride = IndexStride.at(accessor.componentType);
-				index_buffer.data = (void*)((size_t)buffer.data.data() + buffer_view.byteOffset);
-				device.setIndexBuffer(index_buffer);
+				skygfx::Buffer index_buf;
+				index_buf.size = index_buffer_view.byteLength;
+				index_buf.stride = IndexStride.at(index_buffer_accessor.componentType);
+				index_buf.data = (void*)((size_t)index_buffer.data.data() + index_buffer_view.byteOffset);
+				device.setIndexBuffer(index_buf);
+
+				auto index_count = index_buffer_accessor.count;
+				auto index_offset = index_buffer_accessor.byteOffset / 2;
 
 				const auto& positions_buffer_accessor = model.accessors.at(primitive.attributes.at("POSITION"));
 				const auto& positions_buffer_view = model.bufferViews.at(positions_buffer_accessor.bufferView);
 				const auto& positions_buffer = model.buffers.at(positions_buffer_view.buffer);
-
+				
+				auto stride = positions_buffer_accessor.ByteStride(positions_buffer_view);
+				
 				skygfx::Buffer vertex_buffer;
 				vertex_buffer.size = positions_buffer_view.byteLength;
-				vertex_buffer.stride = 4; // sizeof float
-				vertex_buffer.data = (void*)((size_t)positions_buffer.data.data() + positions_buffer_view.byteOffset);
+				vertex_buffer.stride = stride;
+				vertex_buffer.data = (void*)(((size_t)positions_buffer.data.data()) + positions_buffer_view.byteOffset);
 				device.setVertexBuffer(vertex_buffer);
 
 				//device.setTopology(skygfx::Topology::LineList);
 				device.drawIndexed(index_count, index_offset);
 			}
-
 			// TODO: dont forget to draw childrens of node
 		}
 
