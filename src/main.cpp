@@ -108,6 +108,13 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
+static std::function<void(uint32_t, uint32_t)> resize_func = nullptr;
+
+void WindowSizeCallback(GLFWwindow* window, int width, int height)
+{
+	resize_func((uint32_t)width, (uint32_t)height);
+}
+
 struct RenderBuffer
 {
 	struct Batch
@@ -261,6 +268,109 @@ void DrawRenderBuffer(const RenderBuffer& render_buffer, skygfx::Device& device)
 	}
 }
 
+struct Camera
+{
+	glm::vec3 position = { 0.0f, 0.0f, 0.0f };
+	float yaw = 0.0f;
+	float pitch = 0.0f;
+};
+
+std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera, uint32_t width, uint32_t height)
+{
+	if (cursor_is_interacting)
+	{
+		double x = 0.0;
+		double y = 0.0;
+
+		glfwGetCursorPos(window, &x, &y);
+
+		auto dx = x - cursor_saved_pos_x;
+		auto dy = y - cursor_saved_pos_y;
+
+		const auto sensitivity = 0.25f;
+
+		dx *= sensitivity;
+		dy *= sensitivity;
+
+		camera.yaw += glm::radians(static_cast<float>(dx));
+		camera.pitch -= glm::radians(static_cast<float>(dy));
+
+		constexpr auto limit = glm::pi<float>() / 2.0f - 0.01f;
+
+		camera.pitch = fmaxf(-limit, camera.pitch);
+		camera.pitch = fminf(+limit, camera.pitch);
+
+		auto pi = glm::pi<float>();
+
+		while (camera.yaw > pi)
+			camera.yaw -= pi * 2.0f;
+
+		while (camera.yaw < -pi)
+			camera.yaw += pi * 2.0f;
+
+		glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
+	}
+
+	static auto before = glfwGetTime();
+	auto now = glfwGetTime();
+	auto dtime = now - before;
+	before = now;
+
+	auto speed = (float)dtime * 500.0f;
+
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+		speed *= 3.0f;
+
+	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+		speed /= 3.0f;
+
+	glm::vec2 direction = { 0.0f, 0.0f };
+
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		direction.y = 1.0f;
+
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		direction.y = -1.0f;
+
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		direction.x = -1.0f;
+
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		direction.x = 1.0f;
+
+	if (glm::length(direction) > 0.0f)
+	{
+		direction = glm::normalize(direction);
+		direction *= speed;
+	}
+
+	auto sin_yaw = glm::sin(camera.yaw);
+	auto sin_pitch = glm::sin(camera.pitch);
+
+	auto cos_yaw = glm::cos(camera.yaw);
+	auto cos_pitch = glm::cos(camera.pitch);
+
+	const float fov = 70.0f;
+	const float near_plane = 1.0f;
+	const float far_plane = 8192.0f;
+	const glm::vec3 world_up = { 0.0f, 1.0f, 0.0f };
+
+	auto front = glm::normalize(glm::vec3(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch));
+	auto right = glm::normalize(glm::cross(front, world_up));
+	auto up = glm::normalize(glm::cross(right, front));
+
+	if (glm::length(direction) > 0.0f)
+	{
+		camera.position += front * direction.y;
+		camera.position += right * direction.x;
+	}
+
+	auto view = glm::lookAtRH(camera.position, camera.position + front, up);
+	auto projection = glm::perspectiveFov(fov, (float)width, (float)height, near_plane, far_plane);
+
+	return { view, projection };
+}
+
 int main()
 {
 	//auto backend_type = utils::ChooseBackendTypeViaConsole();
@@ -272,7 +382,7 @@ int main()
 	uint32_t width = 800;
 	uint32_t height = 600;
 
-	auto window = glfwCreateWindow(width, height, "sponza demo", NULL, NULL);
+	auto window = glfwCreateWindow(width, height, "sponza", NULL, NULL);
 
 	int count = 0;
 	auto monitors = glfwGetMonitors(&count);
@@ -286,11 +396,18 @@ int main()
 	glfwMakeContextCurrent(window);
 
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
+	glfwSetWindowSizeCallback(window, WindowSizeCallback);
 
 	auto native_window = utils::GetNativeWindow(window);
 
 	auto device = skygfx::Device(backend_type, native_window, width, height);
 	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code);
+
+	resize_func = [&](uint32_t _width, uint32_t _height) {
+		width = _width;
+		height = _height;
+		device.resize(_width, _height);
+	};
 
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
@@ -300,13 +417,11 @@ int main()
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
-	auto yaw = 0.0f;
-	auto pitch = 0.0f;
-	glm::vec3 position = { 0.0f, 0.0f, 0.0f };
+	Camera camera;
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	light.eye_position = position;
+	light.eye_position = camera.position;
 	light.ambient = { 0.25f, 0.25f, 0.25f };
 	light.diffuse = { 1.0f, 1.0f, 1.0f };
 	light.specular = { 1.0f, 1.0f, 1.0f };
@@ -315,96 +430,7 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
-		if (cursor_is_interacting)
-		{
-			double x = 0.0;
-			double y = 0.0;
-
-			glfwGetCursorPos(window, &x, &y);
-
-			auto dx = x - cursor_saved_pos_x;
-			auto dy = y - cursor_saved_pos_y;
-
-			const auto sensitivity = 0.25f;
-
-			dx *= sensitivity;
-			dy *= sensitivity;
-
-			yaw += glm::radians(static_cast<float>(dx));
-			pitch -= glm::radians(static_cast<float>(dy));
-
-			constexpr auto limit = glm::pi<float>() / 2.0f - 0.01f;
-
-			pitch = fmaxf(-limit, pitch);
-			pitch = fminf(+limit, pitch);
-
-			auto pi = glm::pi<float>();
-
-			while (yaw > pi)
-				yaw -= pi * 2.0f;
-
-			while (yaw < -pi)
-				yaw += pi * 2.0f;
-
-			glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
-		}
-
-		static auto before = glfwGetTime();
-		auto now = glfwGetTime();
-		auto dtime = now - before;
-		before = now;
-
-		auto speed = (float)dtime * 500.0f;
-
-		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-			speed *= 3.0f;
-
-		if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-			speed /= 3.0f;
-
-		glm::vec2 direction = { 0.0f, 0.0f };
-
-		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-			direction.y = 1.0f;
-
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-			direction.y = -1.0f;
-
-		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-			direction.x = -1.0f;
-
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-			direction.x = 1.0f;
-
-		if (glm::length(direction) > 0.0f)
-		{
-			direction = glm::normalize(direction);
-			direction *= speed;
-		}
-
-		auto sin_yaw = glm::sin(yaw);
-		auto sin_pitch = glm::sin(pitch);
-
-		auto cos_yaw = glm::cos(yaw);
-		auto cos_pitch = glm::cos(pitch);
-
-		const float fov = 70.0f;
-		const float near_plane = 1.0f;
-		const float far_plane = 8192.0f;
-		const glm::vec3 world_up = { 0.0f, 1.0f, 0.0f };
-
-		auto front = glm::normalize(glm::vec3(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch));
-		auto right = glm::normalize(glm::cross(front, world_up));
-		auto up = glm::normalize(glm::cross(right, front));
-
-		if (glm::length(direction) > 0.0f)
-		{
-			position += front * direction.y;
-			position += right * direction.x;
-		}
-
-		ubo.view = glm::lookAtRH(position, position + front, up);
-		ubo.projection = glm::perspectiveFov(fov, (float)width, (float)height, near_plane, far_plane);
+		std::tie(ubo.view, ubo.projection) = UpdateCamera(window, camera, width, height);
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setShader(shader);
