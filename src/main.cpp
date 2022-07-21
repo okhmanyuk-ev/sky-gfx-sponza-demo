@@ -374,7 +374,7 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 int main()
 {
 	//auto backend_type = utils::ChooseBackendTypeViaConsole();
-	auto backend_type = skygfx::BackendType::D3D11;
+	auto backend_type = skygfx::BackendType::OpenGL44;
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
