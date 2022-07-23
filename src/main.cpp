@@ -5,7 +5,7 @@
 #include <tiny_gltf.h>
 #include <magic_enum.hpp>
 
-enum class Bindings {
+enum class Binding : uint32_t {
 	COLOR_TEXTURE_BINDING,
 	NORMAL_TEXTURE_BINDING,
 	MATRICES_UBO_BINDING,
@@ -142,11 +142,10 @@ std::vector<std::string> MakeBindingDefines()
 	return result;
 }
 
-template<class T>
-uint32_t GetBinding(T value)
+template<class E>
+constexpr auto GetBinding(E e)
 {
-	static_assert(std::is_enum<T>());
-	return static_cast<int>(value);
+	return static_cast<std::underlying_type_t<E>>(e);
 }
 
 struct TextureBundle
@@ -295,8 +294,8 @@ void DrawRenderBuffer(const RenderBuffer& render_buffer, skygfx::Device& device)
 
 	for (const auto& [texture_bundle, batches] : render_buffer.batches)
 	{
-		device.setTexture(GetBinding(Bindings::COLOR_TEXTURE_BINDING), *texture_bundle->color_texture);
-		device.setTexture(GetBinding(Bindings::NORMAL_TEXTURE_BINDING), *texture_bundle->normal_texture);
+		device.setTexture(GetBinding(Binding::COLOR_TEXTURE_BINDING), *texture_bundle->color_texture);
+		device.setTexture(GetBinding(Binding::NORMAL_TEXTURE_BINDING), *texture_bundle->normal_texture);
 
 		for (const auto& batch : batches)
 		{
@@ -439,7 +438,7 @@ int main()
 	auto native_window = utils::GetNativeWindow(window);
 
 	auto device = skygfx::Device(backend_type, native_window, width, height);
-	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code, MakeBindingDefines<Bindings>());
+	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code, MakeBindingDefines<Binding>());
 
 	resize_func = [&](uint32_t _width, uint32_t _height) {
 		width = _width;
@@ -478,8 +477,8 @@ int main()
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setShader(shader);
-		device.setUniformBuffer(GetBinding(Bindings::MATRICES_UBO_BINDING), ubo);
-		device.setUniformBuffer(GetBinding(Bindings::LIGHT_UBO_BINDING), light);
+		device.setUniformBuffer(GetBinding(Binding::MATRICES_UBO_BINDING), ubo);
+		device.setUniformBuffer(GetBinding(Binding::LIGHT_UBO_BINDING), light);
 		
 		DrawRenderBuffer(render_buffer, device);
 
