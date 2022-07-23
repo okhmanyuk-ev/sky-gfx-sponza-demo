@@ -14,7 +14,7 @@ layout(location = TEXCOORD_LOCATION) in vec2 aTexCoord;
 layout(location = 0) out struct { vec3 Position; vec3 Normal; vec2 TexCoord; } Out;
 out gl_PerVertex { vec4 gl_Position; };
 
-layout(binding = 1) uniform _ubo
+layout(binding = 2) uniform _ubo
 {
 	mat4 projection;
 	mat4 view;
@@ -35,7 +35,7 @@ void main()
 static std::string fragment_shader_code = R"(
 #version 450 core
 
-layout(binding = 2) uniform _light
+layout(binding = 3) uniform _light
 {
 	vec3 direction;
 	vec3 ambient;
@@ -447,8 +447,8 @@ int main()
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setShader(shader);
-		device.setUniformBuffer(1, ubo);
-		device.setUniformBuffer(2, light);
+		device.setUniformBuffer(2, ubo);
+		device.setUniformBuffer(3, light);
 		
 		DrawRenderBuffer(render_buffer, device);
 
