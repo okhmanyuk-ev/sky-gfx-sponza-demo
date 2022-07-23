@@ -229,7 +229,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 
 				vertex.pos = positions_ptr[i];
 				vertex.normal = normal_ptr[i];
-				vertex.tex = texcoord_ptr[i];
+				vertex.texcoord = texcoord_ptr[i];
 
 				batch.vertices.push_back(vertex);
 			}
