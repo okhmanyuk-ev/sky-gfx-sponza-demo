@@ -134,25 +134,8 @@ struct RenderBuffer
 		uint32_t index_offset = 0;
 	};
 
-	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<Batch>> textured_batches;
+	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<Batch>> batches;
 };
-
-std::shared_ptr<skygfx::Texture> GetTextureByIndex(const tinygltf::Model& model, int index)
-{
-	static std::unordered_map<int, std::shared_ptr<skygfx::Texture>> textures;
-
-	if (!textures.contains(index))
-	{
-		const auto& texture = model.textures.at(index);
-		const auto& image = model.images.at(texture.source);
-		
-		auto texture_ptr = std::make_shared<skygfx::Texture>((uint32_t)image.width, (uint32_t)image.height, 4, (void*)image.image.data(), true);
-
-		textures.insert({ index, texture_ptr });
-	}
-
-	return textures.at(index);
-}
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 {
@@ -162,6 +145,19 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 	RenderBuffer result;
 
 	const auto& scene = model.scenes.at(0);
+
+	std::unordered_map<int, std::shared_ptr<skygfx::Texture>> textures_cache;
+
+	auto get_or_create_texture = [&](int index) {
+		if (!textures_cache.contains(index))
+		{
+			const auto& texture = model.textures.at(index);
+			const auto& image = model.images.at(texture.source);
+			textures_cache[index] = std::make_shared<skygfx::Texture>((uint32_t)image.width, (uint32_t)image.height, 4, (void*)image.image.data(), true);
+		}
+
+		return textures_cache.at(index);
+	};
 
 	for (auto node_index : scene.nodes)
 	{
@@ -248,10 +244,10 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				continue;
 
 			auto texture_bundle = std::make_shared<TextureBundle>();
-			texture_bundle->color_texture = GetTextureByIndex(model, baseColorTexture.index);
-			texture_bundle->normal_texture = GetTextureByIndex(model, material.normalTexture.index);
+			texture_bundle->color_texture = get_or_create_texture(baseColorTexture.index);
+			texture_bundle->normal_texture = get_or_create_texture(material.normalTexture.index);
 
-			result.textured_batches[texture_bundle].push_back(batch);
+			result.batches[texture_bundle].push_back(batch);
 		}
 		// TODO: dont forget to draw childrens of node
 	}
@@ -266,10 +262,10 @@ void DrawRenderBuffer(const RenderBuffer& render_buffer, skygfx::Device& device)
 	device.setCullMode(skygfx::CullMode::Front);
 	device.setTextureAddressMode(skygfx::TextureAddress::Wrap);
 
-	for (const auto& [texture_bundle, batches] : render_buffer.textured_batches)
+	for (const auto& [texture_bundle, batches] : render_buffer.batches)
 	{
-		device.setTexture(*texture_bundle->color_texture, 0);
-		device.setTexture(*texture_bundle->normal_texture, 1);
+		device.setTexture(0, *texture_bundle->color_texture);
+		device.setTexture(1, *texture_bundle->normal_texture);
 
 		for (const auto& batch : batches)
 		{
@@ -462,5 +458,6 @@ int main()
 	}
 
 	glfwTerminate();
+
 	return 0;
 }
