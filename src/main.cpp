@@ -432,7 +432,6 @@ int main()
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	light.eye_position = camera.position;
 	light.ambient = { 0.125f, 0.125f, 0.125f };
 	light.diffuse = { 1.0f, 1.0f, 1.0f };
 	light.specular = { 1.0f, 1.0f, 1.0f };
@@ -441,12 +440,14 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
-		auto time = (float)glfwGetTime();
+		std::tie(ubo.view, ubo.projection) = UpdateCamera(window, camera, width, height);
+
+		auto time = (float)glfwGetTime() / 2.0f;
 
 		light.direction.x = glm::sin(time);
 		light.direction.z = glm::cos(time);
 
-		std::tie(ubo.view, ubo.projection) = UpdateCamera(window, camera, width, height);
+		light.eye_position = camera.position;
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setShader(shader);
