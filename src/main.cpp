@@ -69,8 +69,8 @@ void main()
 	vec3 light_dir = normalize(light.direction);
 
 	float diff = max(dot(normal, -light_dir), 0.0);
-	vec3 reflectDir = reflect(light_dir, normal);
-	float spec = pow(max(dot(view_dir, reflectDir), 0.0), light.shininess);
+	vec3 reflect_dir = reflect(light_dir, normal);
+	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), light.shininess);
 
 	vec3 intensity = light.ambient + (light.diffuse * diff) + (light.specular * spec);
 
@@ -459,10 +459,9 @@ int main()
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	light.ambient = { 0.125f, 0.125f, 0.125f };
+	light.ambient = { 0.25f, 0.25f, 0.25f };
 	light.diffuse = { 1.0f, 1.0f, 1.0f };
 	light.specular = { 1.0f, 1.0f, 1.0f };
-	light.direction = { 1.0f, 0.5f, 0.5f };
 	light.shininess = 32.0f;
 
 	while (!glfwWindowShouldClose(window))
@@ -471,8 +470,9 @@ int main()
 
 		auto time = (float)glfwGetTime() / 2.0f;
 
-		light.direction.x = glm::sin(time);
-		light.direction.z = glm::cos(time);
+		light.direction.x = glm::cos(time);
+		light.direction.y = 0.5f;
+		light.direction.z = glm::sin(time);
 
 		light.eye_position = camera.position;
 
