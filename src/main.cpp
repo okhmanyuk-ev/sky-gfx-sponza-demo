@@ -47,13 +47,16 @@ layout(binding = 2) uniform _light
 
 layout(location = 0) out vec4 result;
 layout(location = 0) in struct { vec3 Position; vec3 Normal; vec2 TexCoord; } In;
-layout(binding = 0) uniform sampler2D sTexture;
+
+layout(binding = 0) uniform sampler2D sColorTexture;
+layout(binding = 1) uniform sampler2D sNormalTexture;
 
 void main() 
 { 
-	result = texture(sTexture, In.TexCoord);
+	result = texture(sColorTexture, In.TexCoord);
 
-	vec3 normal = normalize(In.Normal);
+	vec3 normal = (In.Normal * vec3(texture(sNormalTexture, In.TexCoord)));
+
 	vec3 view_dir = normalize(light.eye_position - In.Position);
 	vec3 light_dir = normalize(light.direction);
 
@@ -115,6 +118,12 @@ void WindowSizeCallback(GLFWwindow* window, int width, int height)
 	resize_func((uint32_t)width, (uint32_t)height);
 }
 
+struct TextureBundle
+{
+	std::shared_ptr<skygfx::Texture> color_texture;
+	std::shared_ptr<skygfx::Texture> normal_texture;
+};
+
 struct RenderBuffer
 {
 	struct Batch
@@ -125,7 +134,7 @@ struct RenderBuffer
 		uint32_t index_offset = 0;
 	};
 
-	std::unordered_map<std::shared_ptr<skygfx::Texture>, std::vector<Batch>> textured_batches;
+	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<Batch>> textured_batches;
 };
 
 std::shared_ptr<skygfx::Texture> GetTextureByIndex(const tinygltf::Model& model, int index)
@@ -238,9 +247,11 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			if (baseColorTexture.index == -1)
 				continue;
 
-			auto texture = GetTextureByIndex(model, baseColorTexture.index);
+			auto texture_bundle = std::make_shared<TextureBundle>();
+			texture_bundle->color_texture = GetTextureByIndex(model, baseColorTexture.index);
+			texture_bundle->normal_texture = GetTextureByIndex(model, material.normalTexture.index);
 
-			result.textured_batches[texture].push_back(batch);
+			result.textured_batches[texture_bundle].push_back(batch);
 		}
 		// TODO: dont forget to draw childrens of node
 	}
@@ -255,9 +266,10 @@ void DrawRenderBuffer(const RenderBuffer& render_buffer, skygfx::Device& device)
 	device.setCullMode(skygfx::CullMode::Front);
 	device.setTextureAddressMode(skygfx::TextureAddress::Wrap);
 
-	for (const auto& [texture, batches] : render_buffer.textured_batches)
+	for (const auto& [texture_bundle, batches] : render_buffer.textured_batches)
 	{
-		device.setTexture(*texture);
+		device.setTexture(*texture_bundle->color_texture, 0);
+		device.setTexture(*texture_bundle->normal_texture, 1);
 
 		for (const auto& batch : batches)
 		{
@@ -373,8 +385,7 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 
 int main()
 {
-	//auto backend_type = utils::ChooseBackendTypeViaConsole();
-	auto backend_type = skygfx::BackendType::OpenGL44;
+	auto backend_type = utils::ChooseBackendTypeViaConsole();
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -422,7 +433,7 @@ int main()
 	auto render_buffer = BuildRenderBuffer(model);
 
 	light.eye_position = camera.position;
-	light.ambient = { 0.25f, 0.25f, 0.25f };
+	light.ambient = { 0.125f, 0.125f, 0.125f };
 	light.diffuse = { 1.0f, 1.0f, 1.0f };
 	light.specular = { 1.0f, 1.0f, 1.0f };
 	light.direction = { 1.0f, 0.5f, 0.5f };
@@ -430,6 +441,11 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
+		auto time = (float)glfwGetTime();
+
+		light.direction.x = glm::sin(time);
+		light.direction.z = glm::cos(time);
+
 		std::tie(ubo.view, ubo.projection) = UpdateCamera(window, camera, width, height);
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
