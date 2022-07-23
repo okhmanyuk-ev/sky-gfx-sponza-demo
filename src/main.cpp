@@ -3,6 +3,14 @@
 #include <skygfx/skygfx.h>
 #include "../lib/sky-gfx/examples/utils/utils.h"
 #include <tiny_gltf.h>
+#include <magic_enum.hpp>
+
+enum class Bindings {
+	COLOR_TEXTURE_BINDING,
+	NORMAL_TEXTURE_BINDING,
+	MATRICES_UBO_BINDING,
+	LIGHT_UBO_BINDING
+};
 
 static std::string vertex_shader_code = R"(
 #version 450 core
@@ -14,7 +22,7 @@ layout(location = TEXCOORD_LOCATION) in vec2 aTexCoord;
 layout(location = 0) out struct { vec3 Position; vec3 Normal; vec2 TexCoord; } Out;
 out gl_PerVertex { vec4 gl_Position; };
 
-layout(binding = 2) uniform _ubo
+layout(binding = MATRICES_UBO_BINDING) uniform _ubo
 {
 	mat4 projection;
 	mat4 view;
@@ -35,7 +43,7 @@ void main()
 static std::string fragment_shader_code = R"(
 #version 450 core
 
-layout(binding = 3) uniform _light
+layout(binding = LIGHT_UBO_BINDING) uniform _light
 {
 	vec3 direction;
 	vec3 ambient;
@@ -48,8 +56,8 @@ layout(binding = 3) uniform _light
 layout(location = 0) out vec4 result;
 layout(location = 0) in struct { vec3 Position; vec3 Normal; vec2 TexCoord; } In;
 
-layout(binding = 0) uniform sampler2D sColorTexture;
-layout(binding = 1) uniform sampler2D sNormalTexture;
+layout(binding = COLOR_TEXTURE_BINDING) uniform sampler2D sColorTexture;
+layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
 
 void main() 
 { 
@@ -116,6 +124,27 @@ static std::function<void(uint32_t, uint32_t)> resize_func = nullptr;
 void WindowSizeCallback(GLFWwindow* window, int width, int height)
 {
 	resize_func((uint32_t)width, (uint32_t)height);
+}
+
+template<class T>
+std::vector<std::string> MakeDefinesFromEnum()
+{
+	// TODO: static assert T is enum
+	std::vector<std::string> result;
+	for (auto enum_field : magic_enum::enum_values<T>())
+	{
+		auto name = magic_enum::enum_name(enum_field);
+		auto value = std::to_string(static_cast<int>(enum_field));
+		auto combined = std::string(name) + " " + value;
+		result.push_back(combined);
+	}
+	return result;
+}
+
+template<class T>
+uint32_t GetBindingFromEnum(T value)
+{
+	return static_cast<int>(value);
 }
 
 struct TextureBundle
@@ -234,8 +263,8 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				batch.vertices.push_back(vertex);
 			}
 
-			batch.index_count = index_count;
-			batch.index_offset = index_offset;
+			batch.index_count = (uint32_t)index_count;
+			batch.index_offset = (uint32_t)index_offset;
 
 			const auto& material = model.materials.at(primitive.material);
 			const auto& baseColorTexture = material.pbrMetallicRoughness.baseColorTexture;
@@ -264,8 +293,8 @@ void DrawRenderBuffer(const RenderBuffer& render_buffer, skygfx::Device& device)
 
 	for (const auto& [texture_bundle, batches] : render_buffer.batches)
 	{
-		device.setTexture(0, *texture_bundle->color_texture);
-		device.setTexture(1, *texture_bundle->normal_texture);
+		device.setTexture(GetBindingFromEnum(Bindings::COLOR_TEXTURE_BINDING), *texture_bundle->color_texture);
+		device.setTexture(GetBindingFromEnum(Bindings::NORMAL_TEXTURE_BINDING), *texture_bundle->normal_texture);
 
 		for (const auto& batch : batches)
 		{
@@ -408,7 +437,7 @@ int main()
 	auto native_window = utils::GetNativeWindow(window);
 
 	auto device = skygfx::Device(backend_type, native_window, width, height);
-	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code);
+	auto shader = skygfx::Shader(Vertex::Layout, vertex_shader_code, fragment_shader_code, MakeDefinesFromEnum<Bindings>());
 
 	resize_func = [&](uint32_t _width, uint32_t _height) {
 		width = _width;
@@ -447,8 +476,8 @@ int main()
 
 		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 		device.setShader(shader);
-		device.setUniformBuffer(2, ubo);
-		device.setUniformBuffer(3, light);
+		device.setUniformBuffer(GetBindingFromEnum(Bindings::MATRICES_UBO_BINDING), ubo);
+		device.setUniformBuffer(GetBindingFromEnum(Bindings::LIGHT_UBO_BINDING), light);
 		
 		DrawRenderBuffer(render_buffer, device);
 

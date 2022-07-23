@@ -43,3 +43,7 @@ set(TINYGLTF_BUILD_LOADER_EXAMPLE OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(lib/tinygltf)
 target_link_libraries(${PROJECT_NAME} tinygltf)
 set_property(TARGET tinygltf PROPERTY FOLDER ${LIBS_FOLDER})
+
+# magic_enum
+
+target_include_directories(${PROJECT_NAME} PUBLIC lib/magic_enum)
