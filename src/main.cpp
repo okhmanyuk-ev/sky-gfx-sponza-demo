@@ -615,7 +615,7 @@ int main()
 	point_light.constant_attenuation = 0.0f;
 	point_light.linear_attenuation = 0.00128f;
 	point_light.quadratic_attenuation = 0.0f;
-	point_light.position = { 0.0f, 192.0f, 0.0f };
+	point_light.position = { 0.0f, 256.0f, -36.0f };
 
 	//const auto point_light_start_x = -1200.0f;
 	//const auto point_light_end_x = 1200.0f;
