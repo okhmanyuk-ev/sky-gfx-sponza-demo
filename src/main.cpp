@@ -8,15 +8,15 @@
 enum class DirectionalLightBinding : uint32_t {
 	COLOR_TEXTURE_BINDING,
 	NORMAL_TEXTURE_BINDING,
-	MATRICES_UBO_BINDING,
-	DIRECTIONAL_LIGHT_UBO_BINDING
+	MATRICES_UNIFORM_BINDING,
+	DIRECTIONAL_LIGHT_UNIFORM_BINDING
 };
 
 enum class PointLightBinding : uint32_t {
 	COLOR_TEXTURE_BINDING,
 	NORMAL_TEXTURE_BINDING,
-	MATRICES_UBO_BINDING,
-	POINT_LIGHT_UBO_BINDING
+	MATRICES_UNIFORM_BINDING,
+	POINT_LIGHT_UNIFORM_BINDING
 };
 
 static std::string common_vertex_shader_code = R"(
@@ -26,7 +26,7 @@ layout(location = POSITION_LOCATION) in vec3 aPosition;
 layout(location = NORMAL_LOCATION) in vec3 aNormal;
 layout(location = TEXCOORD_LOCATION) in vec2 aTexCoord;
 
-layout(binding = MATRICES_UBO_BINDING) uniform _matrices
+layout(binding = MATRICES_UNIFORM_BINDING) uniform _matrices
 {
 	mat4 projection;
 	mat4 view;
@@ -58,7 +58,7 @@ void main()
 static std::string directional_light_fragment_shader_code = R"(
 #version 450 core
 
-layout(binding = DIRECTIONAL_LIGHT_UBO_BINDING) uniform _light
+layout(binding = DIRECTIONAL_LIGHT_UNIFORM_BINDING) uniform _light
 {
 	vec3 direction;
 	vec3 ambient;
@@ -100,7 +100,7 @@ void main()
 static std::string point_light_fragment_shader_code = R"(
 #version 450 core
 
-layout(binding = POINT_LIGHT_UBO_BINDING) uniform _light
+layout(binding = POINT_LIGHT_UNIFORM_BINDING) uniform _light
 {
 	vec3 position;
 	vec3 ambient;
@@ -501,8 +501,8 @@ void RenderDirectionalLight(skygfx::Device& device, const RenderBuffer& render_b
 		directional_light_fragment_shader_code, MakeBindingDefines<DirectionalLightBinding>());
 
 	device.setShader(directional_light_shader);
-	device.setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UBO_BINDING), matrices);
-	device.setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UBO_BINDING), light);
+	device.setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+	device.setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), light);
 
 	constexpr auto color_texture_binding = GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING);
 	constexpr auto normal_texture_binding = GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING);
@@ -519,8 +519,8 @@ void RenderPointLight(skygfx::Device& device, const RenderBuffer& render_buffer,
 		point_light_fragment_shader_code, MakeBindingDefines<PointLightBinding>());
 
 	device.setShader(point_light_shader);
-	device.setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UBO_BINDING), matrices);
-	device.setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UBO_BINDING), light);
+	device.setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+	device.setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), light);
 
 	constexpr auto color_texture_binding = GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING);
 	constexpr auto normal_texture_binding = GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING);
