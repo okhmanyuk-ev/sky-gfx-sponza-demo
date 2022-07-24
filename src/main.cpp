@@ -26,30 +26,33 @@ layout(location = POSITION_LOCATION) in vec3 aPosition;
 layout(location = NORMAL_LOCATION) in vec3 aNormal;
 layout(location = TEXCOORD_LOCATION) in vec2 aTexCoord;
 
-layout(location = 0) out struct {
-	vec3 Position;
-	vec3 Normal;
-	vec2 TexCoord;
-} Out;
-
-out gl_PerVertex { vec4 gl_Position; };
-
-layout(binding = MATRICES_UBO_BINDING) uniform _ubo
+layout(binding = MATRICES_UBO_BINDING) uniform _matrices
 {
 	mat4 projection;
 	mat4 view;
 	mat4 model;
-} ubo;
+	vec3 eye_position;
+} matrices;
+
+layout(location = 0) out struct {
+	vec3 frag_position;
+	vec3 eye_position;
+	vec3 normal;
+	vec2 tex_coord;
+} Out;
+
+out gl_PerVertex { vec4 gl_Position; };
 
 void main()
 {
-	Out.Position = vec3(ubo.model * vec4(aPosition, 1.0));
-	Out.Normal = vec3(ubo.model * vec4(aNormal, 1.0));
-	Out.TexCoord = aTexCoord;
+	Out.frag_position = vec3(matrices.model * vec4(aPosition, 1.0));
+	Out.eye_position = matrices.eye_position;
+	Out.normal = vec3(matrices.model * vec4(aNormal, 1.0));
+	Out.tex_coord = aTexCoord;
 #ifdef FLIP_TEXCOORD_Y
-	Out.TexCoord.y = 1.0 - Out.TexCoord.y;
+	Out.tex_coord.y = 1.0 - Out.tex_coord.y;
 #endif
-	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(aPosition, 1.0);
+	gl_Position = matrices.projection * matrices.view * matrices.model * vec4(aPosition, 1.0);
 })";
 
 static std::string directional_light_fragment_shader_code = R"(
@@ -61,14 +64,14 @@ layout(binding = DIRECTIONAL_LIGHT_UBO_BINDING) uniform _light
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
-	vec3 eye_position;
 	float shininess;
 } light;
 
 layout(location = 0) in struct {
-	vec3 Position;
-	vec3 Normal;
-	vec2 TexCoord;
+	vec3 frag_position;
+	vec3 eye_position;
+	vec3 normal;
+	vec2 tex_coord;
 } In;
 
 layout(location = 0) out vec4 result;
@@ -78,11 +81,11 @@ layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
 
 void main() 
 { 
-	result = texture(sColorTexture, In.TexCoord);
+	result = texture(sColorTexture, In.tex_coord);
 
-	vec3 normal = (In.Normal * vec3(texture(sNormalTexture, In.TexCoord)));
+	vec3 normal = (In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
 
-	vec3 view_dir = normalize(light.eye_position - In.Position);
+	vec3 view_dir = normalize(In.eye_position - In.frag_position);
 	vec3 light_dir = normalize(light.direction);
 
 	float diff = max(dot(normal, -light_dir), 0.0);
@@ -103,7 +106,6 @@ layout(binding = POINT_LIGHT_UBO_BINDING) uniform _light
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
-	vec3 eye_position;
 	float constant_attenuation;
 	float linear_attenuation;
 	float quadratic_attenuation;
@@ -111,9 +113,10 @@ layout(binding = POINT_LIGHT_UBO_BINDING) uniform _light
 } light;
 
 layout(location = 0) in struct {
-	vec3 Position;
-	vec3 Normal;
-	vec2 TexCoord;
+	vec3 frag_position;
+	vec3 eye_position;
+	vec3 normal;
+	vec2 tex_coord;
 } In;
 
 layout(location = 0) out vec4 result;
@@ -123,11 +126,11 @@ layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
 
 void main() 
 { 
-	result = texture(sColorTexture, In.TexCoord);
+	result = texture(sColorTexture, In.tex_coord);
 
-	vec3 normal = (In.Normal * vec3(texture(sNormalTexture, In.TexCoord)));
+	vec3 normal = (In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
 
-	vec3 light_offset = light.position - In.Position;
+	vec3 light_offset = light.position - In.frag_position;
 
 	float distance = length(light_offset);
 	float linear_attn = light.linear_attenuation * distance;
@@ -137,7 +140,7 @@ void main()
 	vec3 light_dir = normalize(light_offset);
 	float diff = max(dot(normal, light_dir), 0.0);
 	vec3 reflect_dir = reflect(-light_dir, normal);
-	vec3 view_dir = normalize(light.eye_position - In.Position);
+	vec3 view_dir = normalize(In.eye_position - In.frag_position);
 	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), light.shininess);
 
 	vec3 intensity = light.ambient + (light.diffuse * diff) + (light.specular * spec);
@@ -154,6 +157,7 @@ struct alignas(16) Matrices
 	glm::mat4 projection = glm::mat4(1.0f);
 	glm::mat4 view = glm::mat4(1.0f);
 	glm::mat4 model = glm::mat4(1.0f);
+	alignas(16) glm::vec3 eye_position = { 0.0f, 0.0f, 0.0f };
 };
 
 struct alignas(16) DirectionalLight
@@ -162,7 +166,6 @@ struct alignas(16) DirectionalLight
 	alignas(16) glm::vec3 ambient = { 0.0f, 0.0f, 0.0f };
 	alignas(16) glm::vec3 diffuse = { 0.0f, 0.0f, 0.0f };
 	alignas(16) glm::vec3 specular = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 eye_position = { 0.0f, 0.0f, 0.0f };
 	float shininess = 0.0f; // TODO: only material has shininess
 };
 
@@ -172,7 +175,6 @@ struct alignas(16) PointLight
 	alignas(16) glm::vec3 ambient = { 0.0f, 0.0f, 0.0f };
 	alignas(16) glm::vec3 diffuse = { 0.0f, 0.0f, 0.0f };
 	alignas(16) glm::vec3 specular = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 eye_position = { 0.0f, 0.0f, 0.0f };
 	float constant_attenuation = 0.0f;
 	float linear_attenuation = 0.0f;
 	float quadratic_attenuation = 0.0f;
@@ -209,13 +211,13 @@ void WindowSizeCallback(GLFWwindow* window, int width, int height)
 	resize_func((uint32_t)width, (uint32_t)height);
 }
 
-template<class T>
+template<class E>
 std::vector<std::string> MakeBindingDefines()
 {
-	static_assert(std::is_enum<T>());
+	static_assert(std::is_enum<E>());
 
 	std::vector<std::string> result;
-	for (auto enum_field : magic_enum::enum_values<T>())
+	for (auto enum_field : magic_enum::enum_values<E>())
 	{
 		auto name = magic_enum::enum_name(enum_field);
 		auto value = std::to_string(static_cast<int>(enum_field));
@@ -241,6 +243,7 @@ struct RenderBuffer
 {
 	struct Batch
 	{
+		skygfx::Topology topology;
 		std::vector<Vertex> vertices;
 		skygfx::Buffer index_buffer;
 		uint32_t index_count = 0;
@@ -282,7 +285,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 
 		for (const auto& primitive : mesh.primitives)
 		{
-			/*static const std::unordered_map<int, skygfx::Topology> ModesMap = {
+			static const std::unordered_map<int, skygfx::Topology> ModesMap = {
 				{ TINYGLTF_MODE_POINTS, skygfx::Topology::PointList },
 				{ TINYGLTF_MODE_LINE, skygfx::Topology::LineList },
 			//	{ TINYGLTF_MODE_LINE_LOOP, skygfx::Topology:: },
@@ -293,7 +296,6 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			};
 
 			auto topology = ModesMap.at(primitive.mode);
-			device.setTopology(topology);*/
 
 			const static std::unordered_map<int, int> IndexStride = {
 				{ TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT, 2 },
@@ -334,6 +336,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			auto texcoord_ptr = (glm::vec2*)(((size_t)texcoord_buffer.data.data()) + texcoord_buffer_view.byteOffset);
 
 			RenderBuffer::Batch batch;
+			batch.topology = topology;
 			batch.index_buffer = index_buf;
 
 			for (int i = 0; i < positions_buffer_accessor.count; i++)
@@ -471,6 +474,24 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 	return { view, projection };
 }
 
+void DrawRenderBuffer(skygfx::Device& device, const RenderBuffer& render_buffer,
+	uint32_t color_texture_binding, uint32_t normal_texture_binding)
+{
+	for (const auto& [texture_bundle, batches] : render_buffer.batches)
+	{
+		device.setTexture(color_texture_binding, *texture_bundle->color_texture);
+		device.setTexture(normal_texture_binding, *texture_bundle->normal_texture);
+
+		for (const auto& batch : batches)
+		{
+			device.setTopology(batch.topology);
+			device.setIndexBuffer(batch.index_buffer);
+			device.setVertexBuffer(batch.vertices);
+			device.drawIndexed(batch.index_count, batch.index_offset);
+		}
+	}
+}
+
 // TODO: pass device as const ref
 void RenderDirectionalLight(skygfx::Device& device, const RenderBuffer& render_buffer, 
 	const Matrices& matrices, const DirectionalLight& light)
@@ -483,24 +504,10 @@ void RenderDirectionalLight(skygfx::Device& device, const RenderBuffer& render_b
 	device.setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UBO_BINDING), matrices);
 	device.setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UBO_BINDING), light);
 
-	device.setTopology(skygfx::Topology::TriangleList);
-	device.setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
-	device.setCullMode(skygfx::CullMode::Front);
-	device.setTextureAddressMode(skygfx::TextureAddress::Wrap);
-	device.setBlendMode(skygfx::BlendStates::Opaque);
+	constexpr auto color_texture_binding = GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING);
+	constexpr auto normal_texture_binding = GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING);
 
-	for (const auto& [texture_bundle, batches] : render_buffer.batches)
-	{
-		device.setTexture(GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING), *texture_bundle->color_texture);
-		device.setTexture(GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING), *texture_bundle->normal_texture);
-
-		for (const auto& batch : batches)
-		{
-			device.setIndexBuffer(batch.index_buffer);
-			device.setVertexBuffer(batch.vertices);
-			device.drawIndexed(batch.index_count, batch.index_offset);
-		}
-	}
+	DrawRenderBuffer(device, render_buffer, color_texture_binding, normal_texture_binding);
 }
 
 // TODO: pass device as const ref
@@ -515,23 +522,31 @@ void RenderPointLight(skygfx::Device& device, const RenderBuffer& render_buffer,
 	device.setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UBO_BINDING), matrices);
 	device.setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UBO_BINDING), light);
 
-	device.setTopology(skygfx::Topology::TriangleList);
+	constexpr auto color_texture_binding = GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING);
+	constexpr auto normal_texture_binding = GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING);
+
+	DrawRenderBuffer(device, render_buffer, color_texture_binding, normal_texture_binding);
+}
+
+void ForwardRendering(skygfx::Device& device, const RenderBuffer& render_buffer,
+	const Matrices& matrices, const DirectionalLight& directional_light, 
+	const std::vector<PointLight>& point_lights)
+{
+	device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
+
 	device.setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
 	device.setCullMode(skygfx::CullMode::Front);
 	device.setTextureAddressMode(skygfx::TextureAddress::Wrap);
+
+	device.setBlendMode(skygfx::BlendStates::Opaque);
+
+	RenderDirectionalLight(device, render_buffer, matrices, directional_light);
+
 	device.setBlendMode(skygfx::BlendStates::Additive);
 
-	for (const auto& [texture_bundle, batches] : render_buffer.batches)
+	for (const auto& point_light : point_lights)
 	{
-		device.setTexture(GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING), *texture_bundle->color_texture);
-		device.setTexture(GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING), *texture_bundle->normal_texture);
-
-		for (const auto& batch : batches)
-		{
-			device.setIndexBuffer(batch.index_buffer);
-			device.setVertexBuffer(batch.vertices);
-			device.drawIndexed(batch.index_count, batch.index_offset);
-		}
+		RenderPointLight(device, render_buffer, matrices, point_light);
 	}
 }
 
@@ -586,35 +601,39 @@ int main()
 	auto matrices = Matrices();
 
 	auto directional_light = DirectionalLight();
-	directional_light.ambient = { 0.25f, 0.25f, 0.25f };
-	directional_light.diffuse = { 1.0f, 1.0f, 1.0f };
+	directional_light.ambient = { 0.125f, 0.125f, 0.125f };
+	directional_light.diffuse = { 0.125f, 0.125f, 0.125f };
 	directional_light.specular = { 1.0f, 1.0f, 1.0f };
-	directional_light.shininess = 32.0f;
+	directional_light.shininess = 16.0f;
+	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
 	auto point_light = PointLight();
-	point_light.ambient = { 0.0f, 1.0f, 1.0f };
-	point_light.diffuse = { 0.0f, 1.0f, 1.0f };
-	point_light.specular = { 0.0f, 1.0f, 1.0f };
+	point_light.ambient = { 0.125f, 0.125f, 0.125f };
+	point_light.diffuse = { 0.5f, 0.5f, 0.5f };
+	point_light.specular = { 1.0f, 1.0f, 1.0f };
 	point_light.shininess = 32.0f;
-	point_light.linear_attenuation = 0.1f;
+	point_light.constant_attenuation = 0.0f;
+	point_light.linear_attenuation = 0.00128f;
+	point_light.quadratic_attenuation = 0.0f;
+	point_light.position = { 0.0f, 192.0f, 0.0f };
+
+	//const auto point_light_start_x = -1200.0f;
+	//const auto point_light_end_x = 1200.0f;
 
 	while (!glfwWindowShouldClose(window))
 	{
 		std::tie(matrices.view, matrices.projection) = UpdateCamera(window, camera, width, height);
 
-		auto time = (float)glfwGetTime() / 2.0f;
+		matrices.eye_position = camera.position;
 
-		directional_light.direction.x = glm::cos(time);
-		directional_light.direction.y = 0.5f;
-		directional_light.direction.z = glm::sin(time);
-		directional_light.eye_position = camera.position;
+		std::cout << "x: " << camera.position.x << ", y: " <<
+			camera.position.y << ", z: " << camera.position.z << std::endl;
 
-		point_light.eye_position = camera.position;
+		auto time = (float)glfwGetTime();
 
-		device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
-
-		RenderDirectionalLight(device, render_buffer, matrices, directional_light);
-		RenderPointLight(device, render_buffer, matrices, point_light);
+		point_light.position.x = glm::cos(time / 4.0f) * 1200.0f;
+		
+		ForwardRendering(device, render_buffer, matrices, directional_light, { point_light });
 
 		device.present();
 
