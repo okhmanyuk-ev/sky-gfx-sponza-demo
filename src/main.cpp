@@ -79,11 +79,11 @@ layout(location = 0) out vec4 result;
 layout(binding = COLOR_TEXTURE_BINDING) uniform sampler2D sColorTexture;
 layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
 
-void main() 
-{ 
+void main()
+{
 	result = texture(sColorTexture, In.tex_coord);
 
-	vec3 normal = (In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
+	vec3 normal = normalize(In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
 
 	vec3 view_dir = normalize(In.eye_position - In.frag_position);
 	vec3 light_dir = normalize(light.direction);
@@ -124,11 +124,11 @@ layout(location = 0) out vec4 result;
 layout(binding = COLOR_TEXTURE_BINDING) uniform sampler2D sColorTexture;
 layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
 
-void main() 
+void main()
 { 
 	result = texture(sColorTexture, In.tex_coord);
 
-	vec3 normal = (In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
+	vec3 normal = normalize(In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
 
 	vec3 light_offset = light.position - In.frag_position;
 
@@ -425,7 +425,7 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 		speed *= 3.0f;
 
 	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-		speed /= 3.0f;
+		speed /= 6.0f;
 
 	glm::vec2 direction = { 0.0f, 0.0f };
 
@@ -608,7 +608,7 @@ int main()
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
 	auto point_light = PointLight();
-	point_light.ambient = { 0.125f, 0.125f, 0.125f };
+	point_light.ambient = { 0.0625f, 0.0625f, 0.0625f };
 	point_light.diffuse = { 0.5f, 0.5f, 0.5f };
 	point_light.specular = { 1.0f, 1.0f, 1.0f };
 	point_light.shininess = 32.0f;
