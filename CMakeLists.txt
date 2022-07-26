@@ -47,3 +47,14 @@ set_property(TARGET tinygltf PROPERTY FOLDER ${LIBS_FOLDER})
 # magic_enum
 
 target_include_directories(${PROJECT_NAME} PUBLIC lib/magic_enum)
+
+# imgui
+
+file(GLOB IMGUI_SRC 
+	lib/imgui/*.cpp 
+	lib/imgui/*.h
+)
+target_include_directories(${PROJECT_NAME} PUBLIC lib/imgui)
+add_library(imgui STATIC ${IMGUI_SRC})
+target_link_libraries(${PROJECT_NAME} imgui)
+set_property(TARGET imgui PROPERTY FOLDER ${LIBS_FOLDER})

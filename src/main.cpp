@@ -4,6 +4,8 @@
 #include "../lib/sky-gfx/examples/utils/utils.h"
 #include <tiny_gltf.h>
 #include <magic_enum.hpp>
+#include <imgui.h>
+#include "imgui_impl_glfw.h"
 
 enum class DirectionalLightBinding : uint32_t {
 	COLOR_TEXTURE_BINDING,
@@ -19,7 +21,7 @@ enum class PointLightBinding : uint32_t {
 	POINT_LIGHT_UNIFORM_BINDING
 };
 
-static std::string common_vertex_shader_code = R"(
+static const std::string common_vertex_shader_code = R"(
 #version 450 core
 
 layout(location = POSITION_LOCATION) in vec3 aPosition;
@@ -55,7 +57,7 @@ void main()
 	gl_Position = matrices.projection * matrices.view * matrices.model * vec4(aPosition, 1.0);
 })";
 
-static std::string directional_light_fragment_shader_code = R"(
+static const std::string directional_light_fragment_shader_code = R"(
 #version 450 core
 
 layout(binding = DIRECTIONAL_LIGHT_UNIFORM_BINDING) uniform _light
@@ -97,7 +99,7 @@ void main()
 	result *= vec4(intensity, 1.0);
 })";
 
-static std::string point_light_fragment_shader_code = R"(
+static const std::string point_light_fragment_shader_code = R"(
 #version 450 core
 
 layout(binding = POINT_LIGHT_UNIFORM_BINDING) uniform _light
@@ -185,17 +187,26 @@ static double cursor_saved_pos_x = 0.0;
 static double cursor_saved_pos_y = 0.0;
 static bool cursor_is_interacting = false;
 
+bool IsImguiInteracting()
+{
+	return !(!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow | ImGuiHoveredFlags_AllowWhenBlockedByPopup)
+		&& !ImGui::IsAnyItemActive());
+}
+
 void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
 	if (button == GLFW_MOUSE_BUTTON_LEFT)
 	{
-		if (action == GLFW_PRESS)
+		if (action == GLFW_PRESS && !cursor_is_interacting)
 		{
+			if (IsImguiInteracting())
+				return;
+
 			cursor_is_interacting = true;
 			glfwGetCursorPos(window, &cursor_saved_pos_x, &cursor_saved_pos_y);
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 		}
-		else if (action == GLFW_RELEASE)
+		else if (action == GLFW_RELEASE && cursor_is_interacting)
 		{
 			cursor_is_interacting = false;
 			glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
@@ -536,6 +547,7 @@ void ForwardRendering(skygfx::Device& device, const RenderBuffer& render_buffer,
 
 	device.setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
 	device.setCullMode(skygfx::CullMode::Front);
+	device.setSampler(skygfx::Sampler::Linear);
 	device.setTextureAddressMode(skygfx::TextureAddress::Wrap);
 
 	device.setBlendMode(skygfx::BlendStates::Opaque);
@@ -549,6 +561,168 @@ void ForwardRendering(skygfx::Device& device, const RenderBuffer& render_buffer,
 		RenderPointLight(device, render_buffer, matrices, point_light);
 	}
 }
+
+static const std::string imgui_vertex_shader_code = R"(
+#version 450 core
+
+layout(location = POSITION_LOCATION) in vec3 aPosition;
+layout(location = COLOR_LOCATION) in vec4 aColor;
+layout(location = TEXCOORD_LOCATION) in vec2 aTexCoord;
+
+layout(binding = 1) uniform _matrices
+{
+	mat4 projection;
+	mat4 view;
+	mat4 model;
+} matrices;
+
+layout(location = 0) out struct {
+	vec4 color;
+	vec2 tex_coord;
+} Out;
+
+out gl_PerVertex { vec4 gl_Position; };
+
+void main()
+{
+	Out.tex_coord = aTexCoord;
+	Out.color = aColor;
+#ifdef FLIP_TEXCOORD_Y
+	Out.tex_coord.y = 1.0 - Out.tex_coord.y;
+#endif
+	gl_Position = matrices.projection * matrices.view * matrices.model * vec4(aPosition, 1.0);
+})";
+
+static const std::string imgui_fragment_shader_code = R"(
+#version 450 core
+
+layout(location = 0) in struct {
+	vec4 color;
+	vec2 tex_coord;
+} In;
+
+layout(location = 0) out vec4 result;
+
+layout(binding = 0) uniform sampler2D sColorTexture;
+
+void main()
+{ 
+	result = texture(sColorTexture, In.tex_coord) * In.color;
+})";
+
+class ImguiHelper
+{
+public:
+	ImguiHelper(GLFWwindow* window) : mGlfwWindow(window)
+	{
+		ImGui::CreateContext();
+		ImGui::StyleColorsClassic();
+
+		ImGui_ImplGlfw_InitForOpenGL(window, true);
+
+		auto& io = ImGui::GetIO();
+
+		io.IniFilename = NULL;
+
+		if (io.Fonts->IsBuilt())
+			return;
+
+		uint8_t* data;
+		int32_t width;
+		int32_t height;
+
+		io.Fonts->GetTexDataAsRGBA32(&data, &width, &height);
+		mFontTexture = std::make_shared<skygfx::Texture>(width, height, 4, data);
+		io.Fonts->TexID = mFontTexture.get();
+
+		const skygfx::Vertex::Layout vertex_layout = { sizeof(ImDrawVert), {
+			{ skygfx::Vertex::Attribute::Type::Position, skygfx::Vertex::Attribute::Format::R32G32F, offsetof(ImDrawVert, pos) },
+			{ skygfx::Vertex::Attribute::Type::Color, skygfx::Vertex::Attribute::Format::R8G8B8A8UN, offsetof(ImDrawVert, col) },
+			{ skygfx::Vertex::Attribute::Type::TexCoord, skygfx::Vertex::Attribute::Format::R32G32F, offsetof(ImDrawVert, uv) } }
+		};
+
+		mShader = std::make_shared<skygfx::Shader>(vertex_layout, imgui_vertex_shader_code, imgui_fragment_shader_code);
+	}
+
+	~ImguiHelper()
+	{
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+	}
+
+	// TODO: pass device as const ref
+	void draw(skygfx::Device& device)
+	{
+		ImGui::Render();
+
+		device.setTopology(skygfx::Topology::TriangleList);
+		device.setSampler(skygfx::Sampler::Nearest);
+		device.setShader(*mShader);
+		device.setBlendMode(skygfx::BlendStates::NonPremultiplied);
+		device.setDepthMode(std::nullopt);
+		device.setCullMode(skygfx::CullMode::None);
+
+		struct alignas(16) ImguiMatrices
+		{
+			glm::mat4 projection = glm::mat4(1.0f);
+			glm::mat4 view = glm::mat4(1.0f);
+			glm::mat4 model = glm::mat4(1.0f);
+		};
+
+		ImguiMatrices matrices;
+
+		int w, h;
+		glfwGetWindowSize(mGlfwWindow, &w, &h);
+
+		matrices.projection = glm::orthoLH(0.0f, (float)w, (float)h, 0.0f, -1.0f, 1.0f);
+		matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+		device.setUniformBuffer(1, matrices);
+
+		//GRAPHICS->pushOrthoMatrix(getLogicalWidth(), getLogicalHeight());
+
+		auto draw_data = ImGui::GetDrawData();
+		//drawData->ScaleClipRects({ PLATFORM->getScale() * getScale(), PLATFORM->getScale() * getScale() });
+
+		for (int i = 0; i < draw_data->CmdListsCount; i++)
+		{
+			const auto cmds = draw_data->CmdLists[i];
+
+			device.setVertexBuffer(skygfx::Buffer{ cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()) });
+			device.setIndexBuffer(skygfx::Buffer{ cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()) });
+			
+			int index_offset = 0;
+
+			for (auto& cmd : cmds->CmdBuffer)
+			{
+				if (cmd.UserCallback)
+				{
+					cmd.UserCallback(cmds, &cmd);
+				}
+				else
+				{
+					device.setTexture(0, *(skygfx::Texture*)cmd.TextureId);
+					device.setScissor(skygfx::Scissor{ {cmd.ClipRect.x, cmd.ClipRect.y }, { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y } });
+					device.drawIndexed(cmd.ElemCount, index_offset);
+				}
+				index_offset += cmd.ElemCount;
+			}
+		}
+
+		device.setScissor(std::nullopt);
+	}
+
+	void newFrame()
+	{
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+	}
+
+private:
+	std::shared_ptr<skygfx::Texture> mFontTexture = nullptr;
+	std::shared_ptr<skygfx::Shader> mShader = nullptr;
+	GLFWwindow* mGlfwWindow = nullptr;
+};
 
 int main()
 {
@@ -620,8 +794,12 @@ int main()
 	//const auto point_light_start_x = -1200.0f;
 	//const auto point_light_end_x = 1200.0f;
 
+	auto imgui = ImguiHelper(window);
+
 	while (!glfwWindowShouldClose(window))
 	{
+		imgui.newFrame();
+
 		std::tie(matrices.view, matrices.projection) = UpdateCamera(window, camera, width, height);
 
 		matrices.eye_position = camera.position;
@@ -634,6 +812,10 @@ int main()
 		point_light.position.x = glm::cos(time / 4.0f) * 1200.0f;
 		
 		ForwardRendering(device, render_buffer, matrices, directional_light, { point_light });
+
+		ImGui::ShowDemoWindow();
+
+		imgui.draw(device);
 
 		device.present();
 
