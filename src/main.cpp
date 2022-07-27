@@ -562,6 +562,30 @@ void ForwardRendering(skygfx::Device& device, const RenderBuffer& render_buffer,
 	}
 }
 
+void DrawGui(Camera& camera)
+{
+	const int ImGuiWindowFlags_Overlay = ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoScrollWithMouse |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_AlwaysAutoResize |
+		ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_NoInputs |
+		ImGuiWindowFlags_NoFocusOnAppearing |
+		ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+	ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_Overlay & ~ImGuiWindowFlags_NoInputs);
+	ImGui::SetWindowPos(ImVec2(10.0f, 10.0f));
+
+	ImGui::SliderAngle("Pitch##1", &camera.pitch, -89.0f, 89.0f);
+	ImGui::SliderAngle("Yaw##1", &camera.yaw, -180.0f, 180.0f);
+	ImGui::DragFloat3("Position##1", (float*)&camera.position);
+
+	ImGui::End();
+}
+
 static const std::string imgui_vertex_shader_code = R"(
 #version 450 core
 
@@ -679,17 +703,14 @@ public:
 
 		device.setUniformBuffer(1, matrices);
 
-		//GRAPHICS->pushOrthoMatrix(getLogicalWidth(), getLogicalHeight());
-
 		auto draw_data = ImGui::GetDrawData();
-		//drawData->ScaleClipRects({ PLATFORM->getScale() * getScale(), PLATFORM->getScale() * getScale() });
 
 		for (int i = 0; i < draw_data->CmdListsCount; i++)
 		{
 			const auto cmds = draw_data->CmdLists[i];
 
-			device.setVertexBuffer(skygfx::Buffer{ cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()) });
-			device.setIndexBuffer(skygfx::Buffer{ cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()) });
+			device.setVertexBuffer({ cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()) });
+			device.setIndexBuffer({ cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()) });
 			
 			int index_offset = 0;
 
@@ -804,16 +825,13 @@ int main()
 
 		matrices.eye_position = camera.position;
 
-		std::cout << "x: " << camera.position.x << ", y: " <<
-			camera.position.y << ", z: " << camera.position.z << std::endl;
-
 		auto time = (float)glfwGetTime();
 
 		point_light.position.x = glm::cos(time / 4.0f) * 1200.0f;
 		
 		ForwardRendering(device, render_buffer, matrices, directional_light, { point_light });
 
-		ImGui::ShowDemoWindow();
+		DrawGui(camera);
 
 		imgui.draw(device);
 
