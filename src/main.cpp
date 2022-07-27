@@ -204,7 +204,7 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 
 			cursor_is_interacting = true;
 			glfwGetCursorPos(window, &cursor_saved_pos_x, &cursor_saved_pos_y);
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 		}
 		else if (action == GLFW_RELEASE && cursor_is_interacting)
 		{
@@ -647,9 +647,7 @@ public:
 		auto& io = ImGui::GetIO();
 
 		io.IniFilename = NULL;
-
-		if (io.Fonts->IsBuilt())
-			return;
+		io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 
 		uint8_t* data;
 		int32_t width;
