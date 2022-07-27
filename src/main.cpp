@@ -548,7 +548,7 @@ void ForwardRendering(skygfx::Device& device, const RenderBuffer& render_buffer,
 	device.setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
 	device.setCullMode(skygfx::CullMode::Front);
 	device.setSampler(skygfx::Sampler::Linear);
-	device.setTextureAddressMode(skygfx::TextureAddress::Wrap);
+	device.setTextureAddress(skygfx::TextureAddress::Wrap);
 
 	device.setBlendMode(skygfx::BlendStates::Opaque);
 
