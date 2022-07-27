@@ -204,7 +204,7 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 
 			cursor_is_interacting = true;
 			glfwGetCursorPos(window, &cursor_saved_pos_x, &cursor_saved_pos_y);
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		}
 		else if (action == GLFW_RELEASE && cursor_is_interacting)
 		{
