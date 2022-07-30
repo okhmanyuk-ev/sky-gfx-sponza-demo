@@ -6,6 +6,7 @@
 #include <magic_enum.hpp>
 #include <imgui.h>
 #include "imgui_impl_glfw.h"
+#include <unordered_map>
 
 enum class DirectionalLightBinding : uint32_t {
 	COLOR_TEXTURE_BINDING,

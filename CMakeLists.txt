@@ -17,12 +17,14 @@ set(LIBS_FOLDER "libs")
 file(GLOB ALL_SRC 
 	src/*.cpp
 	src/*.h
+	${RESOURCES}
 )
 
 add_executable(${PROJECT_NAME} ${ALL_SRC})
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
 set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_target_properties(${PROJECT_NAME} PROPERTIES RESOURCE ${RESOURCES})
 add_definitions(-DNOMINMAX)
 	
 # sky-gfx
