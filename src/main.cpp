@@ -324,6 +324,22 @@ void DrawGui(Camera& camera)
 	ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_Overlay & ~ImGuiWindowFlags_NoInputs);
 	ImGui::SetWindowPos(ImVec2(10.0f, 10.0f));
 
+	static int fps = 0;
+	static int frame_count = 0;
+	static double before = 0.0;
+
+	double now = glfwGetTime();
+	frame_count++;
+
+	if (now - before >= 1.0)
+	{
+		fps = frame_count;
+		frame_count = 0;
+		before = now;
+	}
+
+	ImGui::Text("FPS: %d", fps);
+	ImGui::Separator();
 	ImGui::SliderAngle("Pitch##1", &camera.pitch, -89.0f, 89.0f);
 	ImGui::SliderAngle("Yaw##1", &camera.yaw, -180.0f, 180.0f);
 	ImGui::DragFloat3("Position##1", (float*)&camera.position);
