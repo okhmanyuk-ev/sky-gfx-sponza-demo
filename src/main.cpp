@@ -1,188 +1,13 @@
 #include <iostream>
-
+#include <unordered_map>
 #include <skygfx/skygfx.h>
 #include "../lib/sky-gfx/examples/utils/utils.h"
 #include <tiny_gltf.h>
-#include <magic_enum.hpp>
 #include <imgui.h>
 #include "imgui_helper.h"
-#include <unordered_map>
-
-enum class DirectionalLightBinding : uint32_t {
-	COLOR_TEXTURE_BINDING,
-	NORMAL_TEXTURE_BINDING,
-	MATRICES_UNIFORM_BINDING,
-	DIRECTIONAL_LIGHT_UNIFORM_BINDING
-};
-
-enum class PointLightBinding : uint32_t {
-	COLOR_TEXTURE_BINDING,
-	NORMAL_TEXTURE_BINDING,
-	MATRICES_UNIFORM_BINDING,
-	POINT_LIGHT_UNIFORM_BINDING
-};
-
-static const std::string common_vertex_shader_code = R"(
-#version 450 core
-
-layout(location = POSITION_LOCATION) in vec3 aPosition;
-layout(location = NORMAL_LOCATION) in vec3 aNormal;
-layout(location = TEXCOORD_LOCATION) in vec2 aTexCoord;
-
-layout(binding = MATRICES_UNIFORM_BINDING) uniform _matrices
-{
-	mat4 projection;
-	mat4 view;
-	mat4 model;
-	vec3 eye_position;
-} matrices;
-
-layout(location = 0) out struct {
-	vec3 frag_position;
-	vec3 eye_position;
-	vec3 normal;
-	vec2 tex_coord;
-} Out;
-
-out gl_PerVertex { vec4 gl_Position; };
-
-void main()
-{
-	Out.frag_position = vec3(matrices.model * vec4(aPosition, 1.0));
-	Out.eye_position = matrices.eye_position;
-	Out.normal = vec3(matrices.model * vec4(aNormal, 1.0));
-	Out.tex_coord = aTexCoord;
-#ifdef FLIP_TEXCOORD_Y
-	Out.tex_coord.y = 1.0 - Out.tex_coord.y;
-#endif
-	gl_Position = matrices.projection * matrices.view * matrices.model * vec4(aPosition, 1.0);
-})";
-
-static const std::string directional_light_fragment_shader_code = R"(
-#version 450 core
-
-layout(binding = DIRECTIONAL_LIGHT_UNIFORM_BINDING) uniform _light
-{
-	vec3 direction;
-	vec3 ambient;
-	vec3 diffuse;
-	vec3 specular;
-	float shininess;
-} light;
-
-layout(location = 0) in struct {
-	vec3 frag_position;
-	vec3 eye_position;
-	vec3 normal;
-	vec2 tex_coord;
-} In;
-
-layout(location = 0) out vec4 result;
-
-layout(binding = COLOR_TEXTURE_BINDING) uniform sampler2D sColorTexture;
-layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
-
-void main()
-{
-	result = texture(sColorTexture, In.tex_coord);
-
-	vec3 normal = normalize(In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
-
-	vec3 view_dir = normalize(In.eye_position - In.frag_position);
-	vec3 light_dir = normalize(light.direction);
-
-	float diff = max(dot(normal, -light_dir), 0.0);
-	vec3 reflect_dir = reflect(light_dir, normal);
-	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), light.shininess);
-
-	vec3 intensity = light.ambient + (light.diffuse * diff) + (light.specular * spec);
-
-	result *= vec4(intensity, 1.0);
-})";
-
-static const std::string point_light_fragment_shader_code = R"(
-#version 450 core
-
-layout(binding = POINT_LIGHT_UNIFORM_BINDING) uniform _light
-{
-	vec3 position;
-	vec3 ambient;
-	vec3 diffuse;
-	vec3 specular;
-	float constant_attenuation;
-	float linear_attenuation;
-	float quadratic_attenuation;
-	float shininess;
-} light;
-
-layout(location = 0) in struct {
-	vec3 frag_position;
-	vec3 eye_position;
-	vec3 normal;
-	vec2 tex_coord;
-} In;
-
-layout(location = 0) out vec4 result;
-
-layout(binding = COLOR_TEXTURE_BINDING) uniform sampler2D sColorTexture;
-layout(binding = NORMAL_TEXTURE_BINDING) uniform sampler2D sNormalTexture;
-
-void main()
-{ 
-	result = texture(sColorTexture, In.tex_coord);
-
-	vec3 normal = normalize(In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
-
-	vec3 light_offset = light.position - In.frag_position;
-
-	float distance = length(light_offset);
-	float linear_attn = light.linear_attenuation * distance;
-	float quadratic_attn = light.quadratic_attenuation * (distance * distance);
-	float attenuation = 1.0 / (light.constant_attenuation + linear_attn + quadratic_attn);
-
-	vec3 light_dir = normalize(light_offset);
-	float diff = max(dot(normal, light_dir), 0.0);
-	vec3 reflect_dir = reflect(-light_dir, normal);
-	vec3 view_dir = normalize(In.eye_position - In.frag_position);
-	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), light.shininess);
-
-	vec3 intensity = light.ambient + (light.diffuse * diff) + (light.specular * spec);
-
-	intensity *= attenuation;
-
-	result *= vec4(intensity, 1.0);	
-})";
+#include "forward_rendering.h"
 
 using Vertex = skygfx::Vertex::PositionTextureNormal;
-
-struct alignas(16) Matrices
-{
-	glm::mat4 projection = glm::mat4(1.0f);
-	glm::mat4 view = glm::mat4(1.0f);
-	glm::mat4 model = glm::mat4(1.0f);
-	alignas(16) glm::vec3 eye_position = { 0.0f, 0.0f, 0.0f };
-};
-
-struct alignas(16) DirectionalLight
-{
-	alignas(16) glm::vec3 direction = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 ambient = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 diffuse = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 specular = { 0.0f, 0.0f, 0.0f };
-	float shininess = 0.0f; // TODO: only material has shininess
-};
-
-struct alignas(16) PointLight
-{
-	alignas(16) glm::vec3 position = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 ambient = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 diffuse = { 0.0f, 0.0f, 0.0f };
-	alignas(16) glm::vec3 specular = { 0.0f, 0.0f, 0.0f };
-	float constant_attenuation = 0.0f;
-	float linear_attenuation = 0.0f;
-	float quadratic_attenuation = 0.0f;
-	float shininess = 0.0f; // TODO: only material has shininess
-};
 
 static double cursor_saved_pos_x = 0.0;
 static double cursor_saved_pos_y = 0.0;
@@ -221,28 +46,6 @@ static std::function<void(uint32_t, uint32_t)> resize_func = nullptr;
 void WindowSizeCallback(GLFWwindow* window, int width, int height)
 {
 	resize_func((uint32_t)width, (uint32_t)height);
-}
-
-template<class E>
-std::vector<std::string> MakeBindingDefines()
-{
-	static_assert(std::is_enum<E>());
-
-	std::vector<std::string> result;
-	for (auto enum_field : magic_enum::enum_values<E>())
-	{
-		auto name = magic_enum::enum_name(enum_field);
-		auto value = std::to_string(static_cast<int>(enum_field));
-		auto combined = std::string(name) + " " + value;
-		result.push_back(combined);
-	}
-	return result;
-}
-
-template<class E>
-constexpr auto GetBinding(E e)
-{
-	return static_cast<std::underlying_type_t<E>>(e);
 }
 
 struct TextureBundle
@@ -486,7 +289,7 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 	return { view, projection };
 }
 
-void DrawRenderBuffer(skygfx::Device& device, const RenderBuffer& render_buffer,
+void DrawGeometry(skygfx::Device& device, const RenderBuffer& render_buffer,
 	uint32_t color_texture_binding, uint32_t normal_texture_binding)
 {
 	for (const auto& [texture_bundle, batches] : render_buffer.batches)
@@ -501,65 +304,6 @@ void DrawRenderBuffer(skygfx::Device& device, const RenderBuffer& render_buffer,
 			device.setVertexBuffer(batch.vertices);
 			device.drawIndexed(batch.index_count, batch.index_offset);
 		}
-	}
-}
-
-// TODO: pass device as const ref
-void RenderDirectionalLight(skygfx::Device& device, const RenderBuffer& render_buffer, 
-	const Matrices& matrices, const DirectionalLight& light)
-{
-	// TODO: do not use static
-	static auto directional_light_shader = skygfx::Shader(Vertex::Layout, common_vertex_shader_code,
-		directional_light_fragment_shader_code, MakeBindingDefines<DirectionalLightBinding>());
-
-	device.setShader(directional_light_shader);
-	device.setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
-	device.setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), light);
-
-	constexpr auto color_texture_binding = GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING);
-	constexpr auto normal_texture_binding = GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING);
-
-	DrawRenderBuffer(device, render_buffer, color_texture_binding, normal_texture_binding);
-}
-
-// TODO: pass device as const ref
-void RenderPointLight(skygfx::Device& device, const RenderBuffer& render_buffer,
-	const Matrices& matrices, const PointLight& light)
-{
-	// TODO: do not use static
-	static auto point_light_shader = skygfx::Shader(Vertex::Layout, common_vertex_shader_code,
-		point_light_fragment_shader_code, MakeBindingDefines<PointLightBinding>());
-
-	device.setShader(point_light_shader);
-	device.setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
-	device.setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), light);
-
-	constexpr auto color_texture_binding = GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING);
-	constexpr auto normal_texture_binding = GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING);
-
-	DrawRenderBuffer(device, render_buffer, color_texture_binding, normal_texture_binding);
-}
-
-void ForwardRendering(skygfx::Device& device, const RenderBuffer& render_buffer,
-	const Matrices& matrices, const DirectionalLight& directional_light, 
-	const std::vector<PointLight>& point_lights)
-{
-	device.clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
-
-	device.setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
-	device.setCullMode(skygfx::CullMode::Front);
-	device.setSampler(skygfx::Sampler::Linear);
-	device.setTextureAddress(skygfx::TextureAddress::Wrap);
-
-	device.setBlendMode(skygfx::BlendStates::Opaque);
-
-	RenderDirectionalLight(device, render_buffer, matrices, directional_light);
-
-	device.setBlendMode(skygfx::BlendStates::Additive);
-
-	for (const auto& point_light : point_lights)
-	{
-		RenderPointLight(device, render_buffer, matrices, point_light);
 	}
 }
 
@@ -615,12 +359,12 @@ int main()
 
 	auto native_window = utils::GetNativeWindow(window);
 
-	auto device = skygfx::Device(backend_type, native_window, width, height);
+	auto device = std::make_shared<skygfx::Device>(backend_type, native_window, width, height);
 	
 	resize_func = [&](uint32_t _width, uint32_t _height) {
 		width = _width;
 		height = _height;
-		device.resize(_width, _height);
+		device->resize(_width, _height);
 	};
 
 	tinygltf::Model model;
@@ -635,16 +379,16 @@ int main()
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	auto matrices = Matrices();
+	auto matrices = ForwardRendering::Matrices();
 
-	auto directional_light = DirectionalLight();
+	auto directional_light = ForwardRendering::DirectionalLight();
 	directional_light.ambient = { 0.125f, 0.125f, 0.125f };
 	directional_light.diffuse = { 0.125f, 0.125f, 0.125f };
 	directional_light.specular = { 1.0f, 1.0f, 1.0f };
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto point_light = PointLight();
+	auto point_light = ForwardRendering::PointLight();
 	point_light.ambient = { 0.0625f, 0.0625f, 0.0625f };
 	point_light.diffuse = { 0.5f, 0.5f, 0.5f };
 	point_light.specular = { 1.0f, 1.0f, 1.0f };
@@ -658,6 +402,11 @@ int main()
 	//const auto point_light_end_x = 1200.0f;
 
 	auto imgui = ImguiHelper(window);
+	auto forward_rendering = ForwardRendering(device, Vertex::Layout);
+
+	auto draw_geometry_func = [&render_buffer](auto& device, auto color_texture_binding, auto normal_texture_binding) {
+		DrawGeometry(device, render_buffer, color_texture_binding, normal_texture_binding);
+	};
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -671,13 +420,13 @@ int main()
 
 		point_light.position.x = glm::cos(time / 4.0f) * 1200.0f;
 		
-		ForwardRendering(device, render_buffer, matrices, directional_light, { point_light });
+		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, { point_light });
 
 		DrawGui(camera);
 
-		imgui.draw(device);
+		imgui.draw(*device);
 
-		device.present();
+		device->present();
 
 		glfwPollEvents();
 	}

@@ -5,7 +5,7 @@
 #include <imgui.h>
 #include "imgui_impl_glfw.h"
 
-class ImguiHelper
+class ImguiHelper : skygfx::noncopyable
 {
 public:
 	ImguiHelper(GLFWwindow* window);
