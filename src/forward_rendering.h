@@ -45,13 +45,6 @@ public:
 		const std::vector<PointLight>& point_lights);
 
 private:
-	void RenderDirectionalLight(DrawGeometryFunc draw_geometry_func,
-		const Matrices& matrices, const DirectionalLight& light);
-
-	void RenderPointLight(DrawGeometryFunc draw_geometry_func,
-		const Matrices& matrices, const PointLight& light);
-
-private:
 	std::shared_ptr<skygfx::Device> mDevice = nullptr;
 	std::shared_ptr<skygfx::Shader> mDirectionalLightShader = nullptr;
 	std::shared_ptr<skygfx::Shader> mPointLightShader = nullptr;

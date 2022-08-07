@@ -178,34 +178,6 @@ ForwardRendering::ForwardRendering(std::shared_ptr<skygfx::Device> device, const
 		point_light_fragment_shader_code, MakeBindingDefines<PointLightBinding>());
 }
 
-// TODO: pass device as const ref
-
-void ForwardRendering::RenderDirectionalLight(DrawGeometryFunc draw_geometry_func,
-	const Matrices& matrices, const DirectionalLight& light)
-{
-	mDevice->setShader(*mDirectionalLightShader);
-	mDevice->setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
-	mDevice->setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), light);
-
-	constexpr auto color_texture_binding = GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING);
-	constexpr auto normal_texture_binding = GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING);
-
-	draw_geometry_func(*mDevice, color_texture_binding, normal_texture_binding);
-}
-
-void ForwardRendering::RenderPointLight(DrawGeometryFunc draw_geometry_func,
-	const Matrices& matrices, const PointLight& light)
-{
-	mDevice->setShader(*mPointLightShader);
-	mDevice->setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
-	mDevice->setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), light);
-
-	constexpr auto color_texture_binding = GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING);
-	constexpr auto normal_texture_binding = GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING);
-
-	draw_geometry_func(*mDevice, color_texture_binding, normal_texture_binding);
-}
-
 void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 	const Matrices& matrices, const DirectionalLight& directional_light,
 	const std::vector<PointLight>& point_lights)
@@ -217,12 +189,22 @@ void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 
 	mDevice->setBlendMode(skygfx::BlendStates::Opaque);
 
-	RenderDirectionalLight(draw_geometry_func, matrices, directional_light);
+	mDevice->setShader(*mDirectionalLightShader);
+	mDevice->setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+	mDevice->setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), directional_light);
+
+	draw_geometry_func(*mDevice, GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING), 
+		GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING));
 
 	mDevice->setBlendMode(skygfx::BlendStates::Additive);
 
 	for (const auto& point_light : point_lights)
 	{
-		RenderPointLight(draw_geometry_func, matrices, point_light);
+		mDevice->setShader(*mPointLightShader);
+		mDevice->setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+		mDevice->setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), point_light);
+
+		draw_geometry_func(*mDevice, GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING), 
+			GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING));
 	}
 }
