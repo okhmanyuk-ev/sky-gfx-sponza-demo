@@ -404,15 +404,30 @@ int main()
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto point_light = ForwardRendering::PointLight();
-	point_light.ambient = { 0.0625f, 0.0625f, 0.0625f };
-	point_light.diffuse = { 0.5f, 0.5f, 0.5f };
-	point_light.specular = { 1.0f, 1.0f, 1.0f };
-	point_light.shininess = 32.0f;
-	point_light.constant_attenuation = 0.0f;
-	point_light.linear_attenuation = 0.00128f;
-	point_light.quadratic_attenuation = 0.0f;
-	point_light.position = { 0.0f, 256.0f, -36.0f };
+	auto white_point_light = ForwardRendering::PointLight();
+	white_point_light.ambient = { 0.0625f, 0.0625f, 0.0625f };
+	white_point_light.diffuse = { 0.5f, 0.5f, 0.5f };
+	white_point_light.specular = { 1.0f, 1.0f, 1.0f };
+	white_point_light.shininess = 32.0f;
+	white_point_light.constant_attenuation = 0.0f;
+	white_point_light.linear_attenuation = 0.00128f;
+	white_point_light.quadratic_attenuation = 0.0f;
+	white_point_light.position = { 0.0f, 256.0f, -36.0f };
+
+	auto red_point_light = white_point_light;
+	red_point_light.ambient = { 0.0625f, 0.0f, 0.0f };
+	red_point_light.diffuse = { 0.5f, 0.0f, 0.0f };
+	red_point_light.specular = { 1.0f, 0.0f, 0.0f };
+
+	auto green_point_light = white_point_light;
+	green_point_light.ambient = { 0.0f, 0.0625f, 0.0f };
+	green_point_light.diffuse = { 0.0f, 0.5f, 0.0f };
+	green_point_light.specular = { 0.0f, 1.0f, 0.0f };
+
+	auto blue_point_light = white_point_light;
+	blue_point_light.ambient = { 0.0f, 0.0f, 0.0625f };
+	blue_point_light.diffuse = { 0.0f, 0.0f, 0.5f };
+	blue_point_light.specular = { 0.0f, 0.0f, 1.0f };
 
 	//const auto point_light_start_x = -1200.0f;
 	//const auto point_light_end_x = 1200.0f;
@@ -434,9 +449,17 @@ int main()
 
 		auto time = (float)glfwGetTime();
 
-		point_light.position.x = glm::cos(time / 4.0f) * 1200.0f;
+		red_point_light.position.x = glm::sin(time / 4.0f) * 1200.0f;
+		green_point_light.position.x = glm::sin(time / 3.0f) * 1200.0f;
+		blue_point_light.position.x = glm::sin(time / 2.0f) * 1200.0f;
 		
-		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, { point_light });
+		auto point_lights = {
+			red_point_light,
+			green_point_light,
+			blue_point_light,
+		};
+
+		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, point_lights);
 
 		DrawGui(camera);
 
