@@ -443,6 +443,8 @@ int main()
 	{
 		imgui.newFrame();
 
+		DrawGui(camera);
+
 		std::tie(matrices.view, matrices.projection) = UpdateCamera(window, camera, width, height);
 
 		matrices.eye_position = camera.position;
@@ -459,9 +461,9 @@ int main()
 			blue_point_light,
 		};
 
-		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, point_lights);
+		device->clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
-		DrawGui(camera);
+		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, point_lights);
 
 		imgui.draw(*device);
 

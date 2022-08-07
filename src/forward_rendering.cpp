@@ -210,8 +210,6 @@ void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 	const Matrices& matrices, const DirectionalLight& directional_light,
 	const std::vector<PointLight>& point_lights)
 {
-	mDevice->clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
-
 	mDevice->setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
 	mDevice->setCullMode(skygfx::CullMode::Front);
 	mDevice->setSampler(skygfx::Sampler::Linear);
