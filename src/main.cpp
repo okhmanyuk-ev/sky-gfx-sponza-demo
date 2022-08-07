@@ -404,33 +404,52 @@ int main()
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto white_point_light = ForwardRendering::PointLight();
-	white_point_light.ambient = { 0.0625f, 0.0625f, 0.0625f };
-	white_point_light.diffuse = { 0.5f, 0.5f, 0.5f };
-	white_point_light.specular = { 1.0f, 1.0f, 1.0f };
-	white_point_light.shininess = 32.0f;
-	white_point_light.constant_attenuation = 0.0f;
-	white_point_light.linear_attenuation = 0.00128f;
-	white_point_light.quadratic_attenuation = 0.0f;
-	white_point_light.position = { 0.0f, 256.0f, -36.0f };
+	auto base_light = ForwardRendering::PointLight();
+	base_light.shininess = 32.0f;
+	base_light.constant_attenuation = 0.0f;
+	base_light.linear_attenuation = 0.00128f;
+	base_light.quadratic_attenuation = 0.0f;
+	
+	auto red_light = base_light;
+	red_light.ambient = { 0.0625f, 0.0f, 0.0f };
+	red_light.diffuse = { 0.5f, 0.0f, 0.0f };
+	red_light.specular = { 1.0f, 0.0f, 0.0f };
 
-	auto red_point_light = white_point_light;
-	red_point_light.ambient = { 0.0625f, 0.0f, 0.0f };
-	red_point_light.diffuse = { 0.5f, 0.0f, 0.0f };
-	red_point_light.specular = { 1.0f, 0.0f, 0.0f };
+	auto green_light = base_light;
+	green_light.ambient = { 0.0f, 0.0625f, 0.0f };
+	green_light.diffuse = { 0.0f, 0.5f, 0.0f };
+	green_light.specular = { 0.0f, 1.0f, 0.0f };
 
-	auto green_point_light = white_point_light;
-	green_point_light.ambient = { 0.0f, 0.0625f, 0.0f };
-	green_point_light.diffuse = { 0.0f, 0.5f, 0.0f };
-	green_point_light.specular = { 0.0f, 1.0f, 0.0f };
+	auto blue_light = base_light;
+	blue_light.ambient = { 0.0f, 0.0f, 0.0625f };
+	blue_light.diffuse = { 0.0f, 0.0f, 0.5f };
+	blue_light.specular = { 0.0f, 0.0f, 1.0f };
 
-	auto blue_point_light = white_point_light;
-	blue_point_light.ambient = { 0.0f, 0.0f, 0.0625f };
-	blue_point_light.diffuse = { 0.0f, 0.0f, 0.5f };
-	blue_point_light.specular = { 0.0f, 0.0f, 1.0f };
+	auto lightblue_light = base_light;
+	lightblue_light.ambient = { 0.0f, 0.0625f, 0.0625f };
+	lightblue_light.diffuse = { 0.0f, 0.5f, 0.5f };
+	lightblue_light.specular = { 0.0f, 1.0f, 1.0f };
 
-	//const auto point_light_start_x = -1200.0f;
-	//const auto point_light_end_x = 1200.0f;
+	struct MovingLight
+	{
+		ForwardRendering::PointLight light;
+		glm::vec3 begin;
+		glm::vec3 end;
+		float multiplier = 1.0f;
+	};
+
+	std::vector<MovingLight> moving_lights = {
+		// first floor
+		{ red_light, { 1200.0f, 256.0f, -36.0f }, { -1200.0f, 256.0f, -36.0f }, 4.0f },
+		{ green_light, { 1200.0f, 256.0f, -36.0f }, { -1200.0f, 256.0f, -36.0f }, 3.0f },
+		{ blue_light, { 1200.0f, 256.0f, -36.0f }, { -1200.0f, 256.0f, -36.0f }, 2.0f },
+		
+		// second floor
+		{ green_light, { 1100.0f, 550.0f, 400.0f }, { 1100.0f, 550.0f, -400.0f }, 1.0f },
+		{ red_light, { -1200.0f, 550.0f, -400.0f }, { -1200.0f, 550.0f, 400.0f }, 2.0f },
+		{ blue_light, { 1100.0f, 550.0f, 400.0f }, { -1200.0f, 550.0f, 400.0f }, 3.0f },
+		{ lightblue_light, { 1100.0f, 550.0f, -400.0f }, { -1200.0f, 550.0f, -400.0f }, 4.0f }
+	};
 
 	auto imgui = ImguiHelper(window);
 	auto forward_rendering = ForwardRendering(device, Vertex::Layout);
@@ -451,19 +470,17 @@ int main()
 
 		auto time = (float)glfwGetTime();
 
-		red_point_light.position.x = glm::sin(time / 4.0f) * 1200.0f;
-		green_point_light.position.x = glm::sin(time / 3.0f) * 1200.0f;
-		blue_point_light.position.x = glm::sin(time / 2.0f) * 1200.0f;
-		
-		auto point_lights = {
-			red_point_light,
-			green_point_light,
-			blue_point_light,
-		};
+		std::vector<ForwardRendering::PointLight> lights;
+
+		for (auto& moving_light : moving_lights)
+		{
+			moving_light.light.position = glm::lerp(moving_light.begin, moving_light.end, (glm::sin(time / moving_light.multiplier) + 1.0f) * 0.5f);
+			lights.push_back(moving_light.light);
+		}
 
 		device->clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
-		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, point_lights);
+		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, lights);
 
 		imgui.draw(*device);
 
