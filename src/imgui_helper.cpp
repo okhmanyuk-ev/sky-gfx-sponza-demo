@@ -109,7 +109,9 @@ void ImguiHelper::draw(skygfx::Device& device)
 	matrices.projection = glm::orthoLH(0.0f, (float)w, (float)h, 0.0f, -1.0f, 1.0f);
 	matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-	device.setUniformBuffer(1, matrices);
+	auto ubo_matrices = skygfx::UniformBuffer(matrices);
+
+	device.setUniformBuffer(1, ubo_matrices);
 
 	auto draw_data = ImGui::GetDrawData();
 
@@ -117,8 +119,11 @@ void ImguiHelper::draw(skygfx::Device& device)
 	{
 		const auto cmds = draw_data->CmdLists[i];
 
-		device.setVertexBuffer({ cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()) });
-		device.setIndexBuffer({ cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()) });
+		auto vertex_buffer = skygfx::VertexBuffer(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
+		auto index_buffer = skygfx::IndexBuffer(cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()));
+
+		device.setVertexBuffer(vertex_buffer);
+		device.setIndexBuffer(index_buffer);
 
 		int index_offset = 0;
 

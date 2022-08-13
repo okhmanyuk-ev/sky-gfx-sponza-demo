@@ -27,11 +27,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY $
 set_target_properties(${PROJECT_NAME} PROPERTIES RESOURCE ${RESOURCES})
 add_definitions(-DNOMINMAX)
 	
-# sky-gfx
+# skygfx
 
 add_subdirectory(lib/sky-gfx)
-set_property(TARGET sky-gfx PROPERTY FOLDER ${LIBS_FOLDER})
-target_link_libraries(${PROJECT_NAME} sky-gfx)
+set_property(TARGET skygfx PROPERTY FOLDER ${LIBS_FOLDER})
+target_link_libraries(${PROJECT_NAME} skygfx)
 
 # glfw
 

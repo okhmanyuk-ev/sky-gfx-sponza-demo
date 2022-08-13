@@ -59,8 +59,8 @@ struct RenderBuffer
 	struct Batch
 	{
 		skygfx::Topology topology;
-		std::vector<Vertex> vertices;
-		skygfx::Buffer index_buffer;
+		std::shared_ptr<skygfx::VertexBuffer> vertex_buffer;
+		std::shared_ptr<skygfx::IndexBuffer> index_buffer;
 		uint32_t index_count = 0;
 		uint32_t index_offset = 0;
 	};
@@ -126,10 +126,9 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			const auto& index_buffer_view = model.bufferViews.at(index_buffer_accessor.bufferView);
 			const auto& index_buffer = model.buffers.at(index_buffer_view.buffer);
 
-			skygfx::Buffer index_buf;
-			index_buf.size = index_buffer_view.byteLength;
-			index_buf.stride = IndexStride.at(index_buffer_accessor.componentType);
-			index_buf.data = (void*)((size_t)index_buffer.data.data() + index_buffer_view.byteOffset);
+			auto index_buf_size = index_buffer_view.byteLength;
+			auto index_buf_stride = IndexStride.at(index_buffer_accessor.componentType);
+			auto index_buf_data = (void*)((size_t)index_buffer.data.data() + index_buffer_view.byteOffset);
 			
 			auto index_count = index_buffer_accessor.count;
 			auto index_offset = index_buffer_accessor.byteOffset / 2;
@@ -152,7 +151,9 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 
 			RenderBuffer::Batch batch;
 			batch.topology = topology;
-			batch.index_buffer = index_buf;
+			batch.index_buffer = std::make_shared<skygfx::IndexBuffer>(index_buf_data, index_buf_size, index_buf_stride);
+
+			std::vector<Vertex> vertices;
 
 			for (int i = 0; i < positions_buffer_accessor.count; i++)
 			{
@@ -162,8 +163,10 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				vertex.normal = normal_ptr[i];
 				vertex.texcoord = texcoord_ptr[i];
 
-				batch.vertices.push_back(vertex);
+				vertices.push_back(vertex);
 			}
+
+			batch.vertex_buffer = std::make_shared<skygfx::VertexBuffer>(vertices);
 
 			batch.index_count = (uint32_t)index_count;
 			batch.index_offset = (uint32_t)index_offset;
@@ -300,8 +303,8 @@ void DrawGeometry(skygfx::Device& device, const RenderBuffer& render_buffer,
 		for (const auto& batch : batches)
 		{
 			device.setTopology(batch.topology);
-			device.setIndexBuffer(batch.index_buffer);
-			device.setVertexBuffer(batch.vertices);
+			device.setIndexBuffer(*batch.index_buffer);
+			device.setVertexBuffer(*batch.vertex_buffer);
 			device.drawIndexed(batch.index_count, batch.index_offset);
 		}
 	}
