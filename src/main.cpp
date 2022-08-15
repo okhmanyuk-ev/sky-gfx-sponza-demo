@@ -292,21 +292,24 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 	return { view, projection };
 }
 
-void DrawGeometry(skygfx::Device& device, const RenderBuffer& render_buffer,
+void DrawGeometry(skygfx::StackDevice& device, const RenderBuffer& render_buffer,
 	uint32_t color_texture_binding, uint32_t normal_texture_binding)
 {
 	for (const auto& [texture_bundle, batches] : render_buffer.batches)
 	{
-		device.setTexture(color_texture_binding, *texture_bundle->color_texture);
-		device.setTexture(normal_texture_binding, *texture_bundle->normal_texture);
+		device.pushTexture(color_texture_binding, texture_bundle->color_texture);
+		device.pushTexture(normal_texture_binding, texture_bundle->normal_texture);
 
 		for (const auto& batch : batches)
 		{
-			device.setTopology(batch.topology);
-			device.setIndexBuffer(*batch.index_buffer);
-			device.setVertexBuffer(*batch.vertex_buffer);
+			device.pushTopology(batch.topology);
+			device.pushIndexBuffer(batch.index_buffer);
+			device.pushVertexBuffer(batch.vertex_buffer);
 			device.drawIndexed(batch.index_count, batch.index_offset);
+			device.pop(3);
 		}
+
+		device.pop(2);
 	}
 }
 
@@ -378,7 +381,7 @@ int main()
 
 	auto native_window = utils::GetNativeWindow(window);
 
-	auto device = std::make_shared<skygfx::Device>(backend_type, native_window, width, height);
+	auto device = std::make_shared<skygfx::StackDevice>(std::make_shared<skygfx::Device>(backend_type, native_window, width, height));
 	
 	resize_func = [&](uint32_t _width, uint32_t _height) {
 		width = _width;

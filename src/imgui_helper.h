@@ -12,7 +12,7 @@ public:
 	~ImguiHelper();
 
 	// TODO: pass device as const ref
-	void draw(skygfx::Device& device);
+	void draw(skygfx::StackDevice& device);
 	void newFrame();
 
 private:

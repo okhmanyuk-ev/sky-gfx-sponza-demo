@@ -66,7 +66,7 @@ ImguiHelper::ImguiHelper(GLFWwindow* window) : mGlfwWindow(window)
 
 	io.Fonts->GetTexDataAsRGBA32(&data, &width, &height);
 	mFontTexture = std::make_shared<skygfx::Texture>(width, height, 4, data);
-	io.Fonts->TexID = mFontTexture.get();
+	io.Fonts->TexID = &mFontTexture;
 
 	const skygfx::Vertex::Layout vertex_layout = { sizeof(ImDrawVert), {
 		{ skygfx::Vertex::Attribute::Type::Position, skygfx::Vertex::Attribute::Format::R32G32F, offsetof(ImDrawVert, pos) },
@@ -83,17 +83,10 @@ ImguiHelper::~ImguiHelper()
 	ImGui::DestroyContext();
 }
 
-void ImguiHelper::draw(skygfx::Device& device)
+void ImguiHelper::draw(skygfx::StackDevice& device)
 {
 	ImGui::Render();
-
-	device.setTopology(skygfx::Topology::TriangleList);
-	device.setSampler(skygfx::Sampler::Nearest);
-	device.setShader(*mShader);
-	device.setBlendMode(skygfx::BlendStates::NonPremultiplied);
-	device.setDepthMode(std::nullopt);
-	device.setCullMode(skygfx::CullMode::None);
-
+	return;
 	struct alignas(16) ImguiMatrices
 	{
 		glm::mat4 projection = glm::mat4(1.0f);
@@ -109,9 +102,15 @@ void ImguiHelper::draw(skygfx::Device& device)
 	matrices.projection = glm::orthoLH(0.0f, (float)w, (float)h, 0.0f, -1.0f, 1.0f);
 	matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-	auto ubo_matrices = skygfx::UniformBuffer(matrices);
+	auto ubo_matrices = std::make_shared<skygfx::UniformBuffer>(matrices);
 
-	device.setUniformBuffer(1, ubo_matrices);
+	device.pushTopology(skygfx::Topology::TriangleList);
+	device.pushSampler(skygfx::Sampler::Nearest);
+	device.pushShader(mShader);
+	device.pushBlendMode(skygfx::BlendStates::NonPremultiplied);
+	device.pushDepthMode(std::nullopt);
+	device.pushCullMode(skygfx::CullMode::None);
+	device.pushUniformBuffer(1, ubo_matrices);
 
 	auto draw_data = ImGui::GetDrawData();
 
@@ -119,11 +118,11 @@ void ImguiHelper::draw(skygfx::Device& device)
 	{
 		const auto cmds = draw_data->CmdLists[i];
 
-		auto vertex_buffer = skygfx::VertexBuffer(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
-		auto index_buffer = skygfx::IndexBuffer(cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()));
+		auto vertex_buffer = std::make_shared<skygfx::VertexBuffer>(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
+		auto index_buffer = std::make_shared<skygfx::IndexBuffer>(cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()));
 
-		device.setVertexBuffer(vertex_buffer);
-		device.setIndexBuffer(index_buffer);
+		device.pushVertexBuffer(vertex_buffer);
+		device.pushIndexBuffer(index_buffer);
 
 		int index_offset = 0;
 
@@ -135,15 +134,18 @@ void ImguiHelper::draw(skygfx::Device& device)
 			}
 			else
 			{
-				device.setTexture(0, *(skygfx::Texture*)cmd.TextureId);
-				device.setScissor(skygfx::Scissor{ {cmd.ClipRect.x, cmd.ClipRect.y }, { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y } });
+				device.pushTexture(0, *(std::shared_ptr<skygfx::Texture>*)cmd.TextureId);
+				device.pushScissor(skygfx::Scissor{ {cmd.ClipRect.x, cmd.ClipRect.y }, { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y } });
 				device.drawIndexed(cmd.ElemCount, index_offset);
+				device.pop(2);
 			}
 			index_offset += cmd.ElemCount;
 		}
+
+		device.pop(2);
 	}
 
-	device.setScissor(std::nullopt);
+	device.pop(7);
 }
 
 void ImguiHelper::newFrame()
