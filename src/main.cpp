@@ -378,7 +378,7 @@ int main()
 
 	auto native_window = utils::GetNativeWindow(window);
 
-	auto device = std::make_shared<skygfx::Device>(backend_type, native_window, width, height);
+	auto device = std::make_shared<skygfx::Device>(native_window, width, height, backend_type);
 	
 	resize_func = [&](uint32_t _width, uint32_t _height) {
 		width = _width;
