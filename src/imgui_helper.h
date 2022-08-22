@@ -18,5 +18,4 @@ public:
 private:
 	std::shared_ptr<skygfx::Texture> mFontTexture = nullptr;
 	std::shared_ptr<skygfx::Shader> mShader = nullptr;
-	GLFWwindow* mGlfwWindow = nullptr;
 };

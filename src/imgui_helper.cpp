@@ -48,7 +48,7 @@ void main()
 	result = texture(sColorTexture, In.tex_coord) * In.color;
 })";
 
-ImguiHelper::ImguiHelper(GLFWwindow* window) : mGlfwWindow(window)
+ImguiHelper::ImguiHelper(GLFWwindow* window)
 {
 	ImGui::CreateContext();
 	ImGui::StyleColorsClassic();
@@ -103,10 +103,10 @@ void ImguiHelper::draw(skygfx::Device& device)
 
 	ImguiMatrices matrices;
 
-	int w, h;
-	glfwGetWindowSize(mGlfwWindow, &w, &h);
+	auto width = device.getBackbufferWidth();
+	auto height = device.getBackbufferHeight();
 
-	matrices.projection = glm::orthoLH(0.0f, (float)w, (float)h, 0.0f, -1.0f, 1.0f);
+	matrices.projection = glm::orthoLH(0.0f, (float)width, (float)height, 0.0f, -1.0f, 1.0f);
 	matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	auto ubo_matrices = skygfx::UniformBuffer(matrices);
