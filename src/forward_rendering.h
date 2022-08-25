@@ -48,8 +48,4 @@ private:
 	std::shared_ptr<skygfx::Device> mDevice = nullptr;
 	std::shared_ptr<skygfx::Shader> mDirectionalLightShader = nullptr;
 	std::shared_ptr<skygfx::Shader> mPointLightShader = nullptr;
-
-	std::shared_ptr<skygfx::UniformBuffer> mDirectionalLightUniformBuffer = nullptr;
-	std::shared_ptr<skygfx::UniformBuffer> mPointLightUniformBuffer = nullptr;
-	std::shared_ptr<skygfx::UniformBuffer> mMatricesUniformBuffer = nullptr;
 };

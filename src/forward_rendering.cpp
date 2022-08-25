@@ -176,19 +176,12 @@ ForwardRendering::ForwardRendering(std::shared_ptr<skygfx::Device> device, const
 
 	mPointLightShader = std::make_shared<skygfx::Shader>(layout, common_vertex_shader_code,
 		point_light_fragment_shader_code, MakeBindingDefines<PointLightBinding>());
-
-	mDirectionalLightUniformBuffer = std::make_shared<skygfx::UniformBuffer>(DirectionalLight());
-	mPointLightUniformBuffer = std::make_shared<skygfx::UniformBuffer>(PointLight());
-	mMatricesUniformBuffer = std::make_shared<skygfx::UniformBuffer>(Matrices());
 }
 
 void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 	const Matrices& matrices, const DirectionalLight& directional_light,
 	const std::vector<PointLight>& point_lights)
 {
-	mMatricesUniformBuffer->write(matrices);
-	mDirectionalLightUniformBuffer->write(directional_light);
-
 	mDevice->setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
 	mDevice->setCullMode(skygfx::CullMode::Front);
 	mDevice->setSampler(skygfx::Sampler::Linear);
@@ -198,8 +191,8 @@ void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 
 	mDevice->setShader(*mDirectionalLightShader);
 
-	mDevice->setUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), *mMatricesUniformBuffer);
-	mDevice->setUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), *mDirectionalLightUniformBuffer);
+	mDevice->setDynamicUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+	mDevice->setDynamicUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), directional_light);
 
 	draw_geometry_func(*mDevice, GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING), 
 		GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING));
@@ -208,11 +201,9 @@ void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 
 	for (const auto& point_light : point_lights)
 	{
-		mPointLightUniformBuffer->write(point_light);
-
 		mDevice->setShader(*mPointLightShader);
-		mDevice->setUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), *mMatricesUniformBuffer);
-		mDevice->setUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), *mPointLightUniformBuffer);
+		mDevice->setDynamicUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+		mDevice->setDynamicUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), point_light);
 
 		draw_geometry_func(*mDevice, GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING), 
 			GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING));
