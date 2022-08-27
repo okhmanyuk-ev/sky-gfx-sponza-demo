@@ -58,7 +58,7 @@ struct RenderBuffer
 {
 	struct Batch
 	{
-		skygfx::Topology topology;
+		skygfx::Topology topology = skygfx::Topology::TriangleList;
 		std::shared_ptr<skygfx::VertexBuffer> vertex_buffer;
 		std::shared_ptr<skygfx::IndexBuffer> index_buffer;
 		uint32_t index_count = 0;
