@@ -207,9 +207,9 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 
 		auto dx = x - cursor_saved_pos_x;
 		auto dy = y - cursor_saved_pos_y;
-
+		
 		const auto sensitivity = 0.25f;
-
+	
 		dx *= sensitivity;
 		dy *= sensitivity;
 
@@ -231,6 +231,20 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 
 		glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
 	}
+	
+	const auto key_camera_sensitivity = 1.0f;
+	
+	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+		camera.yaw += glm::radians(static_cast<float>(key_camera_sensitivity));
+	
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+		camera.yaw -= glm::radians(static_cast<float>(key_camera_sensitivity));
+	
+	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+		camera.pitch += glm::radians(static_cast<float>(key_camera_sensitivity));
+	
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+		camera.pitch -= glm::radians(static_cast<float>(key_camera_sensitivity));
 
 	static auto before = glfwGetTime();
 	auto now = glfwGetTime();
@@ -353,7 +367,7 @@ void DrawGui(Camera& camera)
 int main()
 {
 	auto backend_type = utils::ChooseBackendTypeViaConsole();
-
+	
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
@@ -371,7 +385,6 @@ int main()
 	auto window_pos_y = (video_mode->height / 2) - (height / 2);
 
 	glfwSetWindowPos(window, window_pos_x, window_pos_y);
-	glfwMakeContextCurrent(window);
 
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
 	glfwSetWindowSizeCallback(window, WindowSizeCallback);
