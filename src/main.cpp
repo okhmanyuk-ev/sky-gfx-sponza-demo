@@ -216,35 +216,8 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 		camera.yaw += glm::radians(static_cast<float>(dx));
 		camera.pitch -= glm::radians(static_cast<float>(dy));
 
-		constexpr auto limit = glm::pi<float>() / 2.0f - 0.01f;
-
-		camera.pitch = fmaxf(-limit, camera.pitch);
-		camera.pitch = fminf(+limit, camera.pitch);
-
-		auto pi = glm::pi<float>();
-
-		while (camera.yaw > pi)
-			camera.yaw -= pi * 2.0f;
-
-		while (camera.yaw < -pi)
-			camera.yaw += pi * 2.0f;
-
 		glfwSetCursorPos(window, cursor_saved_pos_x, cursor_saved_pos_y);
 	}
-	
-	const auto key_camera_sensitivity = 1.0f;
-	
-	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-		camera.yaw += glm::radians(static_cast<float>(key_camera_sensitivity));
-	
-	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-		camera.yaw -= glm::radians(static_cast<float>(key_camera_sensitivity));
-	
-	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-		camera.pitch += glm::radians(static_cast<float>(key_camera_sensitivity));
-	
-	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-		camera.pitch -= glm::radians(static_cast<float>(key_camera_sensitivity));
 
 	static auto before = glfwGetTime();
 	auto now = glfwGetTime();
@@ -278,6 +251,33 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 		direction = glm::normalize(direction);
 		direction *= speed;
 	}
+
+	auto angles_speed = dtime * 100.0f;
+	
+	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+		camera.yaw += glm::radians(static_cast<float>(angles_speed));
+	
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+		camera.yaw -= glm::radians(static_cast<float>(angles_speed));
+	
+	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+		camera.pitch += glm::radians(static_cast<float>(angles_speed));
+	
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+		camera.pitch -= glm::radians(static_cast<float>(angles_speed));
+		
+	constexpr auto limit = glm::pi<float>() / 2.0f - 0.01f;
+
+	camera.pitch = fmaxf(-limit, camera.pitch);
+	camera.pitch = fminf(+limit, camera.pitch);
+
+	auto pi = glm::pi<float>();
+
+	while (camera.yaw > pi)
+		camera.yaw -= pi * 2.0f;
+
+	while (camera.yaw < -pi)
+		camera.yaw += pi * 2.0f;
 
 	auto sin_yaw = glm::sin(camera.yaw);
 	auto sin_pitch = glm::sin(camera.pitch);
