@@ -83,16 +83,16 @@ ImguiHelper::~ImguiHelper()
 	ImGui::DestroyContext();
 }
 
-void ImguiHelper::draw(skygfx::Device& device)
+void ImguiHelper::draw()
 {
 	ImGui::Render();
 
-	device.setTopology(skygfx::Topology::TriangleList);
-	device.setSampler(skygfx::Sampler::Nearest);
-	device.setShader(*mShader);
-	device.setBlendMode(skygfx::BlendStates::NonPremultiplied);
-	device.setDepthMode(std::nullopt);
-	device.setCullMode(skygfx::CullMode::None);
+	skygfx::SetTopology(skygfx::Topology::TriangleList);
+	skygfx::SetSampler(skygfx::Sampler::Nearest);
+	skygfx::SetShader(*mShader);
+	skygfx::SetBlendMode(skygfx::BlendStates::NonPremultiplied);
+	skygfx::SetDepthMode(std::nullopt);
+	skygfx::SetCullMode(skygfx::CullMode::None);
 
 	struct alignas(16) ImguiMatrices
 	{
@@ -103,13 +103,13 @@ void ImguiHelper::draw(skygfx::Device& device)
 
 	ImguiMatrices matrices;
 
-	auto width = device.getBackbufferWidth();
-	auto height = device.getBackbufferHeight();
+	auto width = skygfx::GetBackbufferWidth();
+	auto height = skygfx::GetBackbufferHeight();
 
 	matrices.projection = glm::orthoLH(0.0f, (float)width, (float)height, 0.0f, -1.0f, 1.0f);
 	matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-	device.setDynamicUniformBuffer(1, matrices);
+	skygfx::SetDynamicUniformBuffer(1, matrices);
 
 	auto draw_data = ImGui::GetDrawData();
 
@@ -117,8 +117,8 @@ void ImguiHelper::draw(skygfx::Device& device)
 	{
 		const auto cmds = draw_data->CmdLists[i];
 
-		device.setDynamicVertexBuffer(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
-		device.setDynamicIndexBuffer(cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()));
+		skygfx::SetDynamicVertexBuffer(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
+		skygfx::SetDynamicIndexBuffer(cmds->IdxBuffer.Data, static_cast<size_t>(cmds->IdxBuffer.size()));
 
 		int index_offset = 0;
 
@@ -130,15 +130,15 @@ void ImguiHelper::draw(skygfx::Device& device)
 			}
 			else
 			{
-				device.setTexture(0, *(skygfx::Texture*)cmd.TextureId);
-				device.setScissor(skygfx::Scissor{ {cmd.ClipRect.x, cmd.ClipRect.y }, { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y } });
-				device.drawIndexed(cmd.ElemCount, index_offset);
+				skygfx::SetTexture(0, *(skygfx::Texture*)cmd.TextureId);
+				skygfx::SetScissor(skygfx::Scissor{ {cmd.ClipRect.x, cmd.ClipRect.y }, { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y } });
+				skygfx::DrawIndexed(cmd.ElemCount, index_offset);
 			}
 			index_offset += cmd.ElemCount;
 		}
 	}
 
-	device.setScissor(std::nullopt);
+	skygfx::SetScissor(std::nullopt);
 }
 
 void ImguiHelper::newFrame()

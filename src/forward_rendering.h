@@ -34,18 +34,17 @@ public:
 		float shininess = 0.0f; // TODO: only material has shininess
 	};
 
-	using DrawGeometryFunc = std::function<void(skygfx::Device& device, uint32_t color_texture_binding,
+	using DrawGeometryFunc = std::function<void(uint32_t color_texture_binding,
 		uint32_t normal_texture_binding)>;
 
 public:
-	ForwardRendering(std::shared_ptr<skygfx::Device> device, const skygfx::Vertex::Layout& layout);
+	ForwardRendering(const skygfx::Vertex::Layout& layout);
 
 	void Draw(DrawGeometryFunc draw_geometry_func,
 		const Matrices& matrices, const DirectionalLight& directional_light,
 		const std::vector<PointLight>& point_lights);
 
 private:
-	std::shared_ptr<skygfx::Device> mDevice = nullptr;
 	std::shared_ptr<skygfx::Shader> mDirectionalLightShader = nullptr;
 	std::shared_ptr<skygfx::Shader> mPointLightShader = nullptr;
 };

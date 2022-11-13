@@ -306,20 +306,20 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 	return { view, projection };
 }
 
-void DrawGeometry(skygfx::Device& device, const RenderBuffer& render_buffer,
+void DrawGeometry(const RenderBuffer& render_buffer,
 	uint32_t color_texture_binding, uint32_t normal_texture_binding)
 {
 	for (const auto& [texture_bundle, batches] : render_buffer.batches)
 	{
-		device.setTexture(color_texture_binding, *texture_bundle->color_texture);
-		device.setTexture(normal_texture_binding, *texture_bundle->normal_texture);
+		skygfx::SetTexture(color_texture_binding, *texture_bundle->color_texture);
+		skygfx::SetTexture(normal_texture_binding, *texture_bundle->normal_texture);
 
 		for (const auto& batch : batches)
 		{
-			device.setTopology(batch.topology);
-			device.setIndexBuffer(*batch.index_buffer);
-			device.setVertexBuffer(*batch.vertex_buffer);
-			device.drawIndexed(batch.index_count, batch.index_offset);
+			skygfx::SetTopology(batch.topology);
+			skygfx::SetIndexBuffer(*batch.index_buffer);
+			skygfx::SetVertexBuffer(*batch.vertex_buffer);
+			skygfx::DrawIndexed(batch.index_count, batch.index_offset);
 		}
 	}
 }
@@ -391,12 +391,12 @@ int main()
 
 	auto native_window = utils::GetNativeWindow(window);
 
-	auto device = std::make_shared<skygfx::Device>(native_window, width, height, backend_type);
+	skygfx::Initialize(native_window, width, height, backend_type);
 	
 	resize_func = [&](uint32_t _width, uint32_t _height) {
 		width = _width;
 		height = _height;
-		device->resize(_width, _height);
+		skygfx::Resize(_width, _height);
 	};
 
 	tinygltf::Model model;
@@ -468,10 +468,10 @@ int main()
 	};
 
 	auto imgui = ImguiHelper(window);
-	auto forward_rendering = ForwardRendering(device, Vertex::Layout);
+	auto forward_rendering = ForwardRendering(Vertex::Layout);
 
-	auto draw_geometry_func = [&render_buffer](auto& device, auto color_texture_binding, auto normal_texture_binding) {
-		DrawGeometry(device, render_buffer, color_texture_binding, normal_texture_binding);
+	auto draw_geometry_func = [&render_buffer](auto color_texture_binding, auto normal_texture_binding) {
+		DrawGeometry(render_buffer, color_texture_binding, normal_texture_binding);
 	};
 
 	while (!glfwWindowShouldClose(window))
@@ -494,16 +494,18 @@ int main()
 			lights.push_back(moving_light.light);
 		}
 
-		device->clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
+		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
 		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, lights);
 
-		imgui.draw(*device);
+		imgui.draw();
 
-		device->present();
+		skygfx::Present();
 
 		glfwPollEvents();
 	}
+	
+	skygfx::Finalize();
 
 	glfwTerminate();
 

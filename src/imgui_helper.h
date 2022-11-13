@@ -11,8 +11,7 @@ public:
 	ImguiHelper(GLFWwindow* window);
 	~ImguiHelper();
 
-	// TODO: pass device as const ref
-	void draw(skygfx::Device& device);
+	void draw();
 	void newFrame();
 
 private:

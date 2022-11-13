@@ -168,8 +168,7 @@ constexpr auto GetBinding(E e)
 	return static_cast<std::underlying_type_t<E>>(e);
 }
 
-ForwardRendering::ForwardRendering(std::shared_ptr<skygfx::Device> device, const skygfx::Vertex::Layout& layout) : 
-	mDevice(device)
+ForwardRendering::ForwardRendering(const skygfx::Vertex::Layout& layout)
 {
 	mDirectionalLightShader = std::make_shared<skygfx::Shader>(layout, common_vertex_shader_code,
 		directional_light_fragment_shader_code, MakeBindingDefines<DirectionalLightBinding>());
@@ -182,30 +181,30 @@ void ForwardRendering::Draw(DrawGeometryFunc draw_geometry_func,
 	const Matrices& matrices, const DirectionalLight& directional_light,
 	const std::vector<PointLight>& point_lights)
 {
-	mDevice->setDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
-	mDevice->setCullMode(skygfx::CullMode::Front);
-	mDevice->setSampler(skygfx::Sampler::Linear);
-	mDevice->setTextureAddress(skygfx::TextureAddress::Wrap);
+	skygfx::SetDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
+	skygfx::SetCullMode(skygfx::CullMode::Front);
+	skygfx::SetSampler(skygfx::Sampler::Linear);
+	skygfx::SetTextureAddress(skygfx::TextureAddress::Wrap);
 
-	mDevice->setBlendMode(skygfx::BlendStates::Opaque);
+	skygfx::SetBlendMode(skygfx::BlendStates::Opaque);
 
-	mDevice->setShader(*mDirectionalLightShader);
+	skygfx::SetShader(*mDirectionalLightShader);
 
-	mDevice->setDynamicUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
-	mDevice->setDynamicUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), directional_light);
+	skygfx::SetDynamicUniformBuffer(GetBinding(DirectionalLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+	skygfx::SetDynamicUniformBuffer(GetBinding(DirectionalLightBinding::DIRECTIONAL_LIGHT_UNIFORM_BINDING), directional_light);
 
-	draw_geometry_func(*mDevice, GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING), 
+	draw_geometry_func(GetBinding(DirectionalLightBinding::COLOR_TEXTURE_BINDING),
 		GetBinding(DirectionalLightBinding::NORMAL_TEXTURE_BINDING));
 
-	mDevice->setBlendMode(skygfx::BlendStates::Additive);
+	skygfx::SetBlendMode(skygfx::BlendStates::Additive);
 
 	for (const auto& point_light : point_lights)
 	{
-		mDevice->setShader(*mPointLightShader);
-		mDevice->setDynamicUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
-		mDevice->setDynamicUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), point_light);
+		skygfx::SetShader(*mPointLightShader);
+		skygfx::SetDynamicUniformBuffer(GetBinding(PointLightBinding::MATRICES_UNIFORM_BINDING), matrices);
+		skygfx::SetDynamicUniformBuffer(GetBinding(PointLightBinding::POINT_LIGHT_UNIFORM_BINDING), point_light);
 
-		draw_geometry_func(*mDevice, GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING), 
+		draw_geometry_func(GetBinding(PointLightBinding::COLOR_TEXTURE_BINDING), 
 			GetBinding(PointLightBinding::NORMAL_TEXTURE_BINDING));
 	}
 }
