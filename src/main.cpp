@@ -41,13 +41,6 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
-static std::function<void(uint32_t, uint32_t)> resize_func = nullptr;
-
-void WindowSizeCallback(GLFWwindow* window, int width, int height)
-{
-	resize_func((uint32_t)width, (uint32_t)height);
-}
-
 struct TextureBundle
 {
 	std::shared_ptr<skygfx::Texture> color_texture;
@@ -196,7 +189,7 @@ struct Camera
 	float pitch = 0.0f;
 };
 
-std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera, uint32_t width, uint32_t height)
+std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera)
 {
 	if (cursor_is_interacting)
 	{
@@ -299,9 +292,12 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 		camera.position += front * direction.y;
 		camera.position += right * direction.x;
 	}
+	
+	auto width = (float)skygfx::GetBackbufferWidth();
+	auto height = (float)skygfx::GetBackbufferHeight();
 
 	auto view = glm::lookAtRH(camera.position, camera.position + front, up);
-	auto projection = glm::perspectiveFov(fov, (float)width, (float)height, near_plane, far_plane);
+	auto projection = glm::perspectiveFov(fov, width, height, near_plane, far_plane);
 
 	return { view, projection };
 }
@@ -387,17 +383,14 @@ int main()
 	glfwSetWindowPos(window, window_pos_x, window_pos_y);
 
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
-	glfwSetWindowSizeCallback(window, WindowSizeCallback);
-
+	
 	auto native_window = utils::GetNativeWindow(window);
 
 	skygfx::Initialize(native_window, width, height, backend_type);
 	
-	resize_func = [&](uint32_t _width, uint32_t _height) {
-		width = _width;
-		height = _height;
-		skygfx::Resize(_width, _height);
-	};
+	glfwSetWindowSizeCallback(window, [](GLFWwindow* window, int width, int height) {
+		skygfx::Resize(width, height);
+	});
 
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
@@ -480,7 +473,7 @@ int main()
 
 		DrawGui(camera);
 
-		std::tie(matrices.view, matrices.projection) = UpdateCamera(window, camera, width, height);
+		std::tie(matrices.view, matrices.projection) = UpdateCamera(window, camera);
 
 		matrices.eye_position = camera.position;
 
