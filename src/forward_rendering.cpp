@@ -32,7 +32,6 @@ layout(binding = MATRICES_UNIFORM_BINDING) uniform _matrices
 
 layout(location = 0) out struct {
 	vec3 frag_position;
-	vec3 eye_position;
 	vec3 normal;
 	vec2 tex_coord;
 } Out;
@@ -42,7 +41,6 @@ out gl_PerVertex { vec4 gl_Position; };
 void main()
 {
 	Out.frag_position = vec3(matrices.model * vec4(aPosition, 1.0));
-	Out.eye_position = matrices.eye_position;
 	Out.normal = vec3(matrices.model * vec4(aNormal, 1.0));
 	Out.tex_coord = aTexCoord;
 #ifdef FLIP_TEXCOORD_Y
@@ -63,9 +61,16 @@ layout(binding = DIRECTIONAL_LIGHT_UNIFORM_BINDING) uniform _light
 	float shininess;
 } light;
 
+layout(binding = MATRICES_UNIFORM_BINDING) uniform _matrices
+{
+	mat4 projection;
+	mat4 view;
+	mat4 model;
+	vec3 eye_position;
+} matrices;
+
 layout(location = 0) in struct {
 	vec3 frag_position;
-	vec3 eye_position;
 	vec3 normal;
 	vec2 tex_coord;
 } In;
@@ -81,7 +86,7 @@ void main()
 
 	vec3 normal = normalize(In.normal * vec3(texture(sNormalTexture, In.tex_coord)));
 
-	vec3 view_dir = normalize(In.eye_position - In.frag_position);
+	vec3 view_dir = normalize(matrices.eye_position - In.frag_position);
 	vec3 light_dir = normalize(light.direction);
 
 	float diff = max(dot(normal, -light_dir), 0.0);
@@ -108,9 +113,16 @@ layout(binding = POINT_LIGHT_UNIFORM_BINDING) uniform _light
 	float shininess;
 } light;
 
+layout(binding = MATRICES_UNIFORM_BINDING) uniform _matrices
+{
+	mat4 projection;
+	mat4 view;
+	mat4 model;
+	vec3 eye_position;
+} matrices;
+
 layout(location = 0) in struct {
 	vec3 frag_position;
-	vec3 eye_position;
 	vec3 normal;
 	vec2 tex_coord;
 } In;
@@ -136,7 +148,7 @@ void main()
 	vec3 light_dir = normalize(light_offset);
 	float diff = max(dot(normal, light_dir), 0.0);
 	vec3 reflect_dir = reflect(-light_dir, normal);
-	vec3 view_dir = normalize(In.eye_position - In.frag_position);
+	vec3 view_dir = normalize(matrices.eye_position - In.frag_position);
 	float spec = pow(max(dot(view_dir, reflect_dir), 0.0), light.shininess);
 
 	vec3 intensity = light.ambient + (light.diffuse * diff) + (light.specular * spec);
