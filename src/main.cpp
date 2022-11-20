@@ -1,7 +1,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <skygfx/skygfx.h>
-#include "../lib/sky-gfx/examples/utils/utils.h"
+#include "../lib/skygfx/examples/utils/utils.h"
 #include <tiny_gltf.h>
 #include <imgui.h>
 #include "imgui_helper.h"

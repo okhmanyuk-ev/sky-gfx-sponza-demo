@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(sky-gfx-sponza-demo)
+project(skygfx-sponza-demo)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,7 +29,7 @@ add_definitions(-DNOMINMAX)
 	
 # skygfx
 
-add_subdirectory(lib/sky-gfx)
+add_subdirectory(lib/skygfx)
 set_property(TARGET skygfx PROPERTY FOLDER ${LIBS_FOLDER})
 target_link_libraries(${PROJECT_NAME} skygfx)
 
@@ -37,7 +37,7 @@ target_link_libraries(${PROJECT_NAME} skygfx)
 
 set(GLFW_INSTALL OFF)
 set(GLFW_BUILD_DOCS OFF)
-add_subdirectory(lib/sky-gfx/examples/lib/glfw)
+add_subdirectory(lib/skygfx/examples/lib/glfw)
 set_property(TARGET glfw PROPERTY FOLDER ${LIBS_FOLDER}/glfw)
 set_property(TARGET update_mappings PROPERTY FOLDER ${LIBS_FOLDER}/glfw)
 target_link_libraries(${PROJECT_NAME} glfw)
