@@ -41,7 +41,7 @@ out gl_PerVertex { vec4 gl_Position; };
 void main()
 {
 	Out.frag_position = vec3(matrices.model * vec4(aPosition, 1.0));
-	Out.normal = vec3(matrices.model * vec4(aNormal, 1.0));
+	Out.normal = mat3(transpose(inverse(matrices.model))) * aNormal;
 	Out.tex_coord = aTexCoord;
 #ifdef FLIP_TEXCOORD_Y
 	Out.tex_coord.y = 1.0 - Out.tex_coord.y;
