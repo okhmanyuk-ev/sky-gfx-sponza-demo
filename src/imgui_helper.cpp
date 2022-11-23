@@ -69,9 +69,9 @@ ImguiHelper::ImguiHelper(GLFWwindow* window)
 	io.Fonts->TexID = mFontTexture.get();
 
 	const skygfx::Vertex::Layout vertex_layout = { sizeof(ImDrawVert), {
-		{ skygfx::Vertex::Attribute::Type::Position, skygfx::Vertex::Attribute::Format::R32G32F, offsetof(ImDrawVert, pos) },
-		{ skygfx::Vertex::Attribute::Type::Color, skygfx::Vertex::Attribute::Format::R8G8B8A8UN, offsetof(ImDrawVert, col) },
-		{ skygfx::Vertex::Attribute::Type::TexCoord, skygfx::Vertex::Attribute::Format::R32G32F, offsetof(ImDrawVert, uv) } }
+		{ skygfx::Vertex::Location::Position, skygfx::Vertex::Attribute::Format::Float2, offsetof(ImDrawVert, pos) },
+		{ skygfx::Vertex::Location::Color, skygfx::Vertex::Attribute::Format::Byte3, offsetof(ImDrawVert, col) },
+		{ skygfx::Vertex::Location::TexCoord, skygfx::Vertex::Attribute::Format::Float2, offsetof(ImDrawVert, uv) } }
 	};
 
 	mShader = std::make_shared<skygfx::Shader>(vertex_layout, imgui_vertex_shader_code, imgui_fragment_shader_code);
