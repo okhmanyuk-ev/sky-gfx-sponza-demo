@@ -103,10 +103,15 @@ void ImguiHelper::draw()
 
 	ImguiMatrices matrices;
 
-	auto width = skygfx::GetBackbufferWidth();
-	auto height = skygfx::GetBackbufferHeight();
+	auto width = (float)skygfx::GetBackbufferWidth();
+	auto height = (float)skygfx::GetBackbufferHeight();
 
-	matrices.projection = glm::orthoLH(0.0f, (float)width, (float)height, 0.0f, -1.0f, 1.0f);
+	auto display_scale = ImGui::GetIO().DisplayFramebufferScale;
+	
+	width /= display_scale.x;
+	height /= display_scale.y;
+
+	matrices.projection = glm::orthoLH(0.0f, width, height, 0.0f, -1.0f, 1.0f);
 	matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	skygfx::SetDynamicUniformBuffer(1, matrices);
@@ -115,6 +120,8 @@ void ImguiHelper::draw()
 
 	for (int i = 0; i < draw_data->CmdListsCount; i++)
 	{
+		draw_data->ScaleClipRects(display_scale);
+
 		const auto cmds = draw_data->CmdLists[i];
 
 		skygfx::SetDynamicVertexBuffer(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
@@ -130,8 +137,11 @@ void ImguiHelper::draw()
 			}
 			else
 			{
+				skygfx::SetScissor(skygfx::Scissor{
+					.position = { cmd.ClipRect.x, cmd.ClipRect.y },
+					.size = { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y }
+				});
 				skygfx::SetTexture(0, *(skygfx::Texture*)cmd.TextureId);
-				skygfx::SetScissor(skygfx::Scissor{ {cmd.ClipRect.x, cmd.ClipRect.y }, { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y } });
 				skygfx::DrawIndexed(cmd.ElemCount, index_offset);
 			}
 			index_offset += cmd.ElemCount;
