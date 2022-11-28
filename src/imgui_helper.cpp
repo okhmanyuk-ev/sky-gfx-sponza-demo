@@ -107,21 +107,18 @@ void ImguiHelper::draw()
 	auto height = (float)skygfx::GetBackbufferHeight();
 
 	auto display_scale = ImGui::GetIO().DisplayFramebufferScale;
-	
-	width /= display_scale.x;
-	height /= display_scale.y;
 
 	matrices.projection = glm::orthoLH(0.0f, width, height, 0.0f, -1.0f, 1.0f);
 	matrices.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	matrices.model = glm::scale(glm::mat4(1.0f), { display_scale.x, display_scale.y, 1.0f });
 
 	skygfx::SetDynamicUniformBuffer(1, matrices);
 
 	auto draw_data = ImGui::GetDrawData();
+	draw_data->ScaleClipRects(display_scale);
 
 	for (int i = 0; i < draw_data->CmdListsCount; i++)
 	{
-		draw_data->ScaleClipRects(display_scale);
-
 		const auto cmds = draw_data->CmdLists[i];
 
 		skygfx::SetDynamicVertexBuffer(cmds->VtxBuffer.Data, static_cast<size_t>(cmds->VtxBuffer.size()));
