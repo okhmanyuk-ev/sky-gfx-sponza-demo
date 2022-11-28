@@ -70,7 +70,7 @@ ImguiHelper::ImguiHelper(GLFWwindow* window)
 
 	const skygfx::Vertex::Layout vertex_layout = { sizeof(ImDrawVert), {
 		{ skygfx::Vertex::Location::Position, skygfx::Vertex::Attribute::Format::Float2, offsetof(ImDrawVert, pos) },
-		{ skygfx::Vertex::Location::Color, skygfx::Vertex::Attribute::Format::Byte3, offsetof(ImDrawVert, col) },
+		{ skygfx::Vertex::Location::Color, skygfx::Vertex::Attribute::Format::Byte4, offsetof(ImDrawVert, col) },
 		{ skygfx::Vertex::Location::TexCoord, skygfx::Vertex::Attribute::Format::Float2, offsetof(ImDrawVert, uv) } }
 	};
 
