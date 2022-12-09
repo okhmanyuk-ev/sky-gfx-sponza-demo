@@ -37,16 +37,10 @@ void ImguiHelper::draw()
 	skygfx::SetDepthMode(std::nullopt);
 	skygfx::SetCullMode(skygfx::CullMode::None);
 
-	auto width = (float)skygfx::GetBackbufferWidth();
-	auto height = (float)skygfx::GetBackbufferHeight();
-
 	auto display_scale = ImGui::GetIO().DisplayFramebufferScale;
 
-	auto matrices = skygfx::extended::Matrices{
-		.projection = glm::orthoLH(0.0f, width, height, 0.0f, -1.0f, 1.0f),
-		.view = glm::lookAtLH(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-		.model = glm::scale(glm::mat4(1.0f), { display_scale.x, display_scale.y, 1.0f })
-	};
+	auto camera = skygfx::extended::OrthogonalCamera{};
+	auto model = glm::scale(glm::mat4(1.0f), { display_scale.x, display_scale.y, 1.0f });
 
 	auto draw_data = ImGui::GetDrawData();
 	draw_data->ScaleClipRects(display_scale);
@@ -65,6 +59,11 @@ void ImguiHelper::draw()
 			}
 			else
 			{
+				skygfx::SetScissor(skygfx::Scissor{
+					.position = { cmd.ClipRect.x, cmd.ClipRect.y },
+					.size = { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y }
+				});
+
 				auto vertices = skygfx::extended::Mesh::Vertices();
 				
 				for (uint32_t i = 0; i < cmd.ElemCount; i++)
@@ -89,14 +88,9 @@ void ImguiHelper::draw()
 				auto mesh = skygfx::extended::Mesh();
 				mesh.setVertices(vertices);
 				
-				const auto& texture = *(skygfx::Texture*)cmd.TextureId;
+				auto texture = (skygfx::Texture*)cmd.TextureId;
 				
-				auto scissor = skygfx::Scissor{
-					.position = { cmd.ClipRect.x, cmd.ClipRect.y },
-					.size = { cmd.ClipRect.z - cmd.ClipRect.x, cmd.ClipRect.w - cmd.ClipRect.y }
-				};
-				
-				skygfx::extended::DrawMesh(mesh, matrices, texture, scissor);
+				skygfx::extended::DrawMesh(mesh, camera, model, texture);
 			}
 			index_offset += cmd.ElemCount;
 		}

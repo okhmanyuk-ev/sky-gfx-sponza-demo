@@ -5,9 +5,7 @@
 #include <tiny_gltf.h>
 #include <imgui.h>
 #include "imgui_helper.h"
-#include "forward_rendering.h"
-
-using Vertex = skygfx::Vertex::PositionTextureNormal;
+#include <skygfx/extended.h>
 
 static double cursor_saved_pos_x = 0.0;
 static double cursor_saved_pos_y = 0.0;
@@ -49,16 +47,7 @@ struct TextureBundle
 
 struct RenderBuffer
 {
-	struct Batch
-	{
-		skygfx::Topology topology = skygfx::Topology::TriangleList;
-		std::shared_ptr<skygfx::VertexBuffer> vertex_buffer;
-		std::shared_ptr<skygfx::IndexBuffer> index_buffer;
-		uint32_t index_count = 0;
-		uint32_t index_offset = 0;
-	};
-
-	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<Batch>> batches;
+	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<skygfx::extended::Mesh>> meshes;
 };
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
@@ -142,27 +131,42 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			auto normal_ptr = (glm::vec3*)(((size_t)normal_buffer.data.data()) + normal_buffer_view.byteOffset);
 			auto texcoord_ptr = (glm::vec2*)(((size_t)texcoord_buffer.data.data()) + texcoord_buffer_view.byteOffset);
 
-			RenderBuffer::Batch batch;
-			batch.topology = topology;
-			batch.index_buffer = std::make_shared<skygfx::IndexBuffer>(index_buf_data, index_buf_size, index_buf_stride);
+			auto indices = skygfx::extended::Mesh::Indices();
 
-			std::vector<Vertex> vertices;
+			for (int i = 0; i < index_buffer_accessor.count; i++)
+			{
+				uint32_t index;
+
+				if (index_buf_stride == 2)
+					index = static_cast<uint32_t>(((uint16_t*)index_buf_data)[i]);
+				else
+					index = ((uint32_t*)index_buf_data)[i];
+
+				indices.push_back(index);
+			}
+
+			skygfx::extended::Mesh::Vertices vertices;
 
 			for (int i = 0; i < positions_buffer_accessor.count; i++)
 			{
-				Vertex vertex;
+				skygfx::extended::Mesh::Vertex vertex;
 
 				vertex.pos = positions_ptr[i];
 				vertex.normal = normal_ptr[i];
 				vertex.texcoord = texcoord_ptr[i];
+				vertex.color = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 				vertices.push_back(vertex);
 			}
 
-			batch.vertex_buffer = std::make_shared<skygfx::VertexBuffer>(vertices);
-
-			batch.index_count = (uint32_t)index_count;
-			batch.index_offset = (uint32_t)index_offset;
+			auto mesh = skygfx::extended::Mesh();
+			mesh.setTopology(topology);
+			mesh.setIndices(indices);
+			mesh.setVertices(vertices);
+			mesh.setDrawingType(skygfx::extended::Mesh::DrawIndexedVertices{
+				.index_count = (uint32_t)index_count,
+				.index_offset = (uint32_t)index_offset
+			});
 
 			const auto& material = model.materials.at(primitive.material);
 			const auto& baseColorTexture = material.pbrMetallicRoughness.baseColorTexture;
@@ -174,7 +178,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			texture_bundle->color_texture = get_or_create_texture(baseColorTexture.index);
 			texture_bundle->normal_texture = get_or_create_texture(material.normalTexture.index);
 
-			result.batches[texture_bundle].push_back(batch);
+			result.meshes[texture_bundle].push_back(mesh);
 		}
 		// TODO: dont forget to draw childrens of node
 	}
@@ -182,14 +186,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 	return result;
 }
 
-struct Camera
-{
-	glm::vec3 position = { 0.0f, 0.0f, 0.0f };
-	float yaw = 0.0f;
-	float pitch = 0.0f;
-};
-
-std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera)
+void UpdateCamera(GLFWwindow* window, skygfx::extended::PerspectiveCamera& camera)
 {
 	if (cursor_is_interacting)
 	{
@@ -285,42 +282,16 @@ std::tuple<glm::mat4, glm::mat4> UpdateCamera(GLFWwindow* window, Camera& camera
 
 	auto front = glm::normalize(glm::vec3(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch));
 	auto right = glm::normalize(glm::cross(front, world_up));
-	auto up = glm::normalize(glm::cross(right, front));
+	//auto up = glm::normalize(glm::cross(right, front));
 
 	if (glm::length(direction) > 0.0f)
 	{
 		camera.position += front * direction.y;
 		camera.position += right * direction.x;
 	}
-	
-	auto width = (float)skygfx::GetBackbufferWidth();
-	auto height = (float)skygfx::GetBackbufferHeight();
-
-	auto view = glm::lookAtRH(camera.position, camera.position + front, up);
-	auto projection = glm::perspectiveFov(fov, width, height, near_plane, far_plane);
-
-	return { view, projection };
 }
 
-void DrawGeometry(const RenderBuffer& render_buffer,
-	uint32_t color_texture_binding, uint32_t normal_texture_binding)
-{
-	for (const auto& [texture_bundle, batches] : render_buffer.batches)
-	{
-		skygfx::SetTexture(color_texture_binding, *texture_bundle->color_texture);
-		skygfx::SetTexture(normal_texture_binding, *texture_bundle->normal_texture);
-
-		for (const auto& batch : batches)
-		{
-			skygfx::SetTopology(batch.topology);
-			skygfx::SetIndexBuffer(*batch.index_buffer);
-			skygfx::SetVertexBuffer(*batch.vertex_buffer);
-			skygfx::DrawIndexed(batch.index_count, batch.index_offset);
-		}
-	}
-}
-
-void DrawGui(Camera& camera)
+void DrawGui(skygfx::extended::PerspectiveCamera& camera)
 {
 	const int ImGuiWindowFlags_Overlay = ImGuiWindowFlags_NoTitleBar |
 		ImGuiWindowFlags_NoResize |
@@ -383,20 +354,18 @@ int main()
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
-	Camera camera;
+	auto camera = skygfx::extended::PerspectiveCamera();
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	auto matrices = ForwardRendering::Matrices();
-
-	auto directional_light = ForwardRendering::DirectionalLight();
+	auto directional_light = skygfx::extended::DirectionalLight();
 	directional_light.ambient = { 0.125f, 0.125f, 0.125f };
 	directional_light.diffuse = { 0.125f, 0.125f, 0.125f };
 	directional_light.specular = { 1.0f, 1.0f, 1.0f };
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto base_light = ForwardRendering::PointLight();
+	auto base_light = skygfx::extended::PointLight();
 	base_light.shininess = 32.0f;
 	base_light.constant_attenuation = 0.0f;
 	base_light.linear_attenuation = 0.00128f;
@@ -424,7 +393,7 @@ int main()
 
 	struct MovingLight
 	{
-		ForwardRendering::PointLight light;
+		skygfx::extended::PointLight light;
 		glm::vec3 begin;
 		glm::vec3 end;
 		float multiplier = 1.0f;
@@ -444,11 +413,6 @@ int main()
 	};
 
 	auto imgui = ImguiHelper(window);
-	auto forward_rendering = ForwardRendering(Vertex::Layout);
-
-	auto draw_geometry_func = [&render_buffer](auto color_texture_binding, auto normal_texture_binding) {
-		DrawGeometry(render_buffer, color_texture_binding, normal_texture_binding);
-	};
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -456,23 +420,46 @@ int main()
 
 		DrawGui(camera);
 
-		std::tie(matrices.view, matrices.projection) = UpdateCamera(window, camera);
-
-		matrices.eye_position = camera.position;
+		UpdateCamera(window, camera);
 
 		auto time = (float)glfwGetTime();
 
-		std::vector<ForwardRendering::PointLight> lights;
+		std::vector<skygfx::extended::PointLight> point_lights;
 
 		for (auto& moving_light : moving_lights)
 		{
 			moving_light.light.position = glm::lerp(moving_light.begin, moving_light.end, (glm::sin(time / moving_light.multiplier) + 1.0f) * 0.5f);
-			lights.push_back(moving_light.light);
+			point_lights.push_back(moving_light.light);
 		}
 
 		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
-		forward_rendering.Draw(draw_geometry_func, matrices, directional_light, lights);
+		auto draw_meshes = [&](const auto& light){
+			for (const auto& [texture_bundle, meshes] : render_buffer.meshes)
+			{
+				for (const auto& mesh : meshes)
+				{
+					skygfx::extended::DrawMesh(mesh, camera, glm::mat4(1.0f), texture_bundle->color_texture.get(),
+						texture_bundle->normal_texture.get(), 0.0f, light);
+				}
+			}
+		};
+
+		skygfx::SetDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
+		skygfx::SetCullMode(skygfx::CullMode::Front);
+		skygfx::SetSampler(skygfx::Sampler::Linear);
+		skygfx::SetTextureAddress(skygfx::TextureAddress::Wrap);
+
+		skygfx::SetBlendMode(skygfx::BlendStates::Opaque);
+
+		draw_meshes(directional_light);
+
+		skygfx::SetBlendMode(skygfx::BlendStates::Additive);
+
+		for (const auto& point_light : point_lights)
+		{
+			draw_meshes(point_light);
+		}
 
 		imgui.draw();
 
