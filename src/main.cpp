@@ -437,10 +437,14 @@ int main()
 		auto draw_meshes = [&](const auto& light){
 			for (const auto& [texture_bundle, meshes] : render_buffer.meshes)
 			{
+				auto material = skygfx::extended::Material{
+					.color_texture = texture_bundle->color_texture.get(),
+					.normal_texture = texture_bundle->normal_texture.get()
+				};
+				
 				for (const auto& mesh : meshes)
 				{
-					skygfx::extended::DrawMesh(mesh, camera, glm::mat4(1.0f), texture_bundle->color_texture.get(),
-						texture_bundle->normal_texture.get(), 0.0f, light);
+					skygfx::extended::DrawMesh(mesh, camera, glm::mat4(1.0f), material, 0.0f, light);
 				}
 			}
 		};

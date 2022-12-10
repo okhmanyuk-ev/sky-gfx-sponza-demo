@@ -88,9 +88,11 @@ void ImguiHelper::draw()
 				auto mesh = skygfx::extended::Mesh();
 				mesh.setVertices(vertices);
 				
-				auto texture = (skygfx::Texture*)cmd.TextureId;
+				auto material = skygfx::extended::Material{
+					.color_texture = (skygfx::Texture*)cmd.TextureId
+				};
 				
-				skygfx::extended::DrawMesh(mesh, camera, model, texture);
+				skygfx::extended::DrawMesh(mesh, camera, model, material);
 			}
 			index_offset += cmd.ElemCount;
 		}
