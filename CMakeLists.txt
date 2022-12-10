@@ -17,6 +17,9 @@ set(LIBS_FOLDER "libs")
 file(GLOB ALL_SRC 
 	src/*.cpp
 	src/*.h
+	lib/skygfx/examples/utils/*.cpp
+	lib/skygfx/examples/utils/*.h
+	lib/skygfx/examples/lib/imgui/backends/imgui_impl_glfw.cpp
 	${RESOURCES}
 )
 
@@ -51,17 +54,16 @@ add_subdirectory(lib/tinygltf)
 target_link_libraries(${PROJECT_NAME} tinygltf)
 set_property(TARGET tinygltf PROPERTY FOLDER ${LIBS_FOLDER})
 
-# magic_enum
-
-target_include_directories(${PROJECT_NAME} PUBLIC lib/magic_enum)
-
 # imgui
 
 file(GLOB IMGUI_SRC 
-	lib/imgui/*.cpp 
-	lib/imgui/*.h
+	lib/skygfx/examples/lib/imgui/*.cpp 
+	lib/skygfx/examples/lib/imgui/*.h
 )
-target_include_directories(${PROJECT_NAME} PUBLIC lib/imgui)
+target_include_directories(${PROJECT_NAME} PUBLIC
+	lib/skygfx/examples/lib/imgui
+	lib/skygfx/examples/lib/imgui/backends
+)
 add_library(imgui STATIC ${IMGUI_SRC})
 target_link_libraries(${PROJECT_NAME} imgui)
 set_property(TARGET imgui PROPERTY FOLDER ${LIBS_FOLDER})

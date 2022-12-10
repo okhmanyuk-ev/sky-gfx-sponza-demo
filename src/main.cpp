@@ -1,11 +1,10 @@
 #include <iostream>
 #include <unordered_map>
-#include <skygfx/skygfx.h>
-#include "../lib/skygfx/examples/utils/utils.h"
 #include <tiny_gltf.h>
 #include <imgui.h>
-#include "imgui_helper.h"
 #include <skygfx/extended.h>
+#include "../lib/skygfx/examples/utils/utils.h"
+#include "../lib/skygfx/examples/utils/imgui_helper.h"
 
 static double cursor_saved_pos_x = 0.0;
 static double cursor_saved_pos_y = 0.0;
