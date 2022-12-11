@@ -38,15 +38,17 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
-struct TextureBundle
+struct Material
 {
 	std::shared_ptr<skygfx::Texture> color_texture;
 	std::shared_ptr<skygfx::Texture> normal_texture;
+	std::shared_ptr<skygfx::Texture> metallic_roughness_texture;
+	glm::vec4 color;
 };
 
 struct RenderBuffer
 {
-	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<skygfx::utils::Mesh>> meshes;
+	std::unordered_map<std::shared_ptr<Material>, std::vector<skygfx::utils::Mesh>> meshes;
 };
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
@@ -60,7 +62,10 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 
 	std::unordered_map<int, std::shared_ptr<skygfx::Texture>> textures_cache;
 
-	auto get_or_create_texture = [&](int index) {
+	auto get_or_create_texture = [&](int index) -> std::shared_ptr<skygfx::Texture> {
+		if (index == -1)
+			return nullptr;
+			
 		if (!textures_cache.contains(index))
 		{
 			const auto& texture = model.textures.at(index);
@@ -169,15 +174,22 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 
 			const auto& material = model.materials.at(primitive.material);
 			const auto& baseColorTexture = material.pbrMetallicRoughness.baseColorTexture;
+			const auto& metallicRoughnessTexture = material.pbrMetallicRoughness.metallicRoughnessTexture;
+			const auto& baseColorFactor = material.pbrMetallicRoughness.baseColorFactor;
+			const auto& occlusionTexture = material.occlusionTexture;
+			
+			auto _material = std::make_shared<Material>();
+			_material->color_texture = get_or_create_texture(baseColorTexture.index);
+			_material->normal_texture = get_or_create_texture(material.normalTexture.index);
+			_material->metallic_roughness_texture = get_or_create_texture(metallicRoughnessTexture.index);
+			_material->color = {
+				baseColorFactor.at(0),
+				baseColorFactor.at(1),
+				baseColorFactor.at(2),
+				baseColorFactor.at(3)
+			};
 
-			if (baseColorTexture.index == -1)
-				continue;
-
-			auto texture_bundle = std::make_shared<TextureBundle>();
-			texture_bundle->color_texture = get_or_create_texture(baseColorTexture.index);
-			texture_bundle->normal_texture = get_or_create_texture(material.normalTexture.index);
-
-			result.meshes[texture_bundle].push_back(mesh);
+			result.meshes[_material].push_back(mesh);
 		}
 		// TODO: dont forget to draw childrens of node
 	}
@@ -435,11 +447,13 @@ int main()
 		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
 		auto draw_meshes = [&](const auto& light){
-			for (const auto& [texture_bundle, meshes] : render_buffer.meshes)
+			for (const auto& [_material, meshes] : render_buffer.meshes)
 			{
 				auto material = skygfx::utils::Material{
-					.color_texture = texture_bundle->color_texture.get(),
-					.normal_texture = texture_bundle->normal_texture.get()
+					.color = _material->color,
+					.color_texture = _material->color_texture.get(),
+					.normal_texture = _material->normal_texture.get(),
+				//	.metallic_roughness_texture = _material->metallic_roughness_texture.get()
 				};
 				
 				for (const auto& mesh : meshes)
