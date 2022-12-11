@@ -2,7 +2,7 @@
 #include <unordered_map>
 #include <tiny_gltf.h>
 #include <imgui.h>
-#include <skygfx/extended.h>
+#include <skygfx/utils.h>
 #include "../lib/skygfx/examples/utils/utils.h"
 #include "../lib/skygfx/examples/utils/imgui_helper.h"
 
@@ -46,7 +46,7 @@ struct TextureBundle
 
 struct RenderBuffer
 {
-	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<skygfx::extended::Mesh>> meshes;
+	std::unordered_map<std::shared_ptr<TextureBundle>, std::vector<skygfx::utils::Mesh>> meshes;
 };
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
@@ -130,7 +130,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			auto normal_ptr = (glm::vec3*)(((size_t)normal_buffer.data.data()) + normal_buffer_view.byteOffset);
 			auto texcoord_ptr = (glm::vec2*)(((size_t)texcoord_buffer.data.data()) + texcoord_buffer_view.byteOffset);
 
-			auto indices = skygfx::extended::Mesh::Indices();
+			auto indices = skygfx::utils::Mesh::Indices();
 
 			for (int i = 0; i < index_buffer_accessor.count; i++)
 			{
@@ -144,11 +144,11 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				indices.push_back(index);
 			}
 
-			skygfx::extended::Mesh::Vertices vertices;
+			skygfx::utils::Mesh::Vertices vertices;
 
 			for (int i = 0; i < positions_buffer_accessor.count; i++)
 			{
-				skygfx::extended::Mesh::Vertex vertex;
+				skygfx::utils::Mesh::Vertex vertex;
 
 				vertex.pos = positions_ptr[i];
 				vertex.normal = normal_ptr[i];
@@ -158,11 +158,11 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				vertices.push_back(vertex);
 			}
 
-			auto mesh = skygfx::extended::Mesh();
+			auto mesh = skygfx::utils::Mesh();
 			mesh.setTopology(topology);
 			mesh.setIndices(indices);
 			mesh.setVertices(vertices);
-			mesh.setDrawingType(skygfx::extended::Mesh::DrawIndexedVertices{
+			mesh.setDrawingType(skygfx::utils::Mesh::DrawIndexedVertices{
 				.index_count = (uint32_t)index_count,
 				.index_offset = (uint32_t)index_offset
 			});
@@ -185,7 +185,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 	return result;
 }
 
-void UpdateCamera(GLFWwindow* window, skygfx::extended::PerspectiveCamera& camera)
+void UpdateCamera(GLFWwindow* window, skygfx::utils::PerspectiveCamera& camera)
 {
 	if (cursor_is_interacting)
 	{
@@ -290,7 +290,7 @@ void UpdateCamera(GLFWwindow* window, skygfx::extended::PerspectiveCamera& camer
 	}
 }
 
-void DrawGui(skygfx::extended::PerspectiveCamera& camera)
+void DrawGui(skygfx::utils::PerspectiveCamera& camera)
 {
 	const int ImGuiWindowFlags_Overlay = ImGuiWindowFlags_NoTitleBar |
 		ImGuiWindowFlags_NoResize |
@@ -332,8 +332,9 @@ void DrawGui(skygfx::extended::PerspectiveCamera& camera)
 
 int main()
 {
-	auto backend_type = utils::ChooseBackendTypeViaConsole();
-	
+	//auto backend_type = utils::ChooseBackendTypeViaConsole();
+	auto backend_type = skygfx::BackendType::OpenGL;
+
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
@@ -353,18 +354,18 @@ int main()
 
 	bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, path);
 
-	auto camera = skygfx::extended::PerspectiveCamera();
+	auto camera = skygfx::utils::PerspectiveCamera();
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	auto directional_light = skygfx::extended::DirectionalLight();
+	auto directional_light = skygfx::utils::DirectionalLight();
 	directional_light.ambient = { 0.125f, 0.125f, 0.125f };
 	directional_light.diffuse = { 0.125f, 0.125f, 0.125f };
 	directional_light.specular = { 1.0f, 1.0f, 1.0f };
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto base_light = skygfx::extended::PointLight();
+	auto base_light = skygfx::utils::PointLight();
 	base_light.shininess = 32.0f;
 	base_light.constant_attenuation = 0.0f;
 	base_light.linear_attenuation = 0.00128f;
@@ -392,7 +393,7 @@ int main()
 
 	struct MovingLight
 	{
-		skygfx::extended::PointLight light;
+		skygfx::utils::PointLight light;
 		glm::vec3 begin;
 		glm::vec3 end;
 		float multiplier = 1.0f;
@@ -423,7 +424,7 @@ int main()
 
 		auto time = (float)glfwGetTime();
 
-		std::vector<skygfx::extended::PointLight> point_lights;
+		std::vector<skygfx::utils::PointLight> point_lights;
 
 		for (auto& moving_light : moving_lights)
 		{
@@ -436,14 +437,14 @@ int main()
 		auto draw_meshes = [&](const auto& light){
 			for (const auto& [texture_bundle, meshes] : render_buffer.meshes)
 			{
-				auto material = skygfx::extended::Material{
+				auto material = skygfx::utils::Material{
 					.color_texture = texture_bundle->color_texture.get(),
 					.normal_texture = texture_bundle->normal_texture.get()
 				};
 				
 				for (const auto& mesh : meshes)
 				{
-					skygfx::extended::DrawMesh(mesh, camera, glm::mat4(1.0f), material, 0.0f, light);
+					skygfx::utils::DrawMesh(mesh, camera, glm::mat4(1.0f), material, 0.0f, light);
 				}
 			}
 		};
