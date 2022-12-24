@@ -5,6 +5,7 @@
 #include <skygfx/utils.h>
 #include "../lib/skygfx/examples/utils/utils.h"
 #include "../lib/skygfx/examples/utils/imgui_helper.h"
+#include <imgui_impl_glfw.h>
 
 static double cursor_saved_pos_x = 0.0;
 static double cursor_saved_pos_y = 0.0;
@@ -424,11 +425,15 @@ int main()
 		{ lightblue_light, { 1100.0f, 550.0f, -400.0f }, { -1200.0f, 550.0f, -400.0f }, 4.0f }
 	};
 
-	auto imgui = ImguiHelper(window);
+	auto imgui = ImguiHelper();
+
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
 
 	while (!glfwWindowShouldClose(window))
 	{
-		imgui.newFrame();
+		ImGui_ImplGlfw_NewFrame();
+
+		ImGui::NewFrame();
 
 		DrawGui(camera);
 
@@ -485,6 +490,8 @@ int main()
 
 		glfwPollEvents();
 	}
+	
+	ImGui_ImplGlfw_Shutdown();
 	
 	skygfx::Finalize();
 
