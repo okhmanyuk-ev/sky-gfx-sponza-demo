@@ -49,7 +49,7 @@ struct Material
 
 struct RenderBuffer
 {
-	std::unordered_map<std::shared_ptr<Material>, std::vector<skygfx::utils::Mesh>> meshes;
+	std::unordered_map<std::shared_ptr<Material>, std::vector<std::pair<skygfx::utils::Mesh, skygfx::utils::DrawCommand>>> meshes;
 };
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
@@ -168,10 +168,11 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			mesh.setTopology(topology);
 			mesh.setIndices(indices);
 			mesh.setVertices(vertices);
-			mesh.setDrawingType(skygfx::utils::Mesh::DrawIndexedVertices{
+
+			auto draw_command = skygfx::utils::DrawIndexedVerticesCommand{
 				.index_count = (uint32_t)index_count,
 				.index_offset = (uint32_t)index_offset
-			});
+			};
 
 			const auto& material = model.materials.at(primitive.material);
 			const auto& baseColorTexture = material.pbrMetallicRoughness.baseColorTexture;
@@ -190,7 +191,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				baseColorFactor.at(3)
 			};
 
-			result.meshes[_material].push_back(mesh);
+			result.meshes[_material].push_back({ mesh, draw_command });
 		}
 		// TODO: dont forget to draw childrens of node
 	}
@@ -461,9 +462,9 @@ int main()
 				//	.metallic_roughness_texture = _material->metallic_roughness_texture.get()
 				};
 				
-				for (const auto& mesh : meshes)
+				for (const auto& [mesh, draw_command]: meshes)
 				{
-					skygfx::utils::DrawMesh(mesh, camera, glm::mat4(1.0f), material, 0.0f, light);
+					skygfx::utils::DrawMesh(mesh, camera, glm::mat4(1.0f), material, draw_command, 0.0f, light);
 				}
 			}
 		};
