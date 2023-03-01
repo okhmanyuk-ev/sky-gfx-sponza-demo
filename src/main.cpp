@@ -359,6 +359,8 @@ int main()
 	glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
 		skygfx::Resize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 	});
+	
+	glfwSetMouseButtonCallback(window, MouseButtonCallback);
 
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
