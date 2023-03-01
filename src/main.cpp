@@ -347,7 +347,7 @@ void DrawGui(skygfx::utils::PerspectiveCamera& camera)
 int main()
 {
 	//auto backend_type = utils::ChooseBackendTypeViaConsole();
-	auto backend_type = skygfx::BackendType::OpenGL;
+	auto backend_type = skygfx::BackendType::D3D11;
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -454,6 +454,18 @@ int main()
 
 		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
+		skygfx::SetDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
+		skygfx::SetCullMode(skygfx::CullMode::Front);
+		skygfx::SetSampler(skygfx::Sampler::Linear);
+		skygfx::SetTextureAddress(skygfx::TextureAddress::Wrap);
+
+		auto [proj, view, eye_pos] = skygfx::utils::MakeCameraMatrices(camera);
+
+		auto matrices = skygfx::utils::Matrices{
+			.projection = proj,
+			.view = view
+		};
+
 		auto draw_meshes = [&](const auto& light){
 			for (const auto& [_material, meshes] : render_buffer.meshes)
 			{
@@ -466,15 +478,10 @@ int main()
 				
 				for (const auto& [mesh, draw_command]: meshes)
 				{
-					skygfx::utils::DrawMesh(mesh, camera, glm::mat4(1.0f), material, draw_command, 0.0f, light);
+					skygfx::utils::DrawMesh(mesh, matrices, material, draw_command, 0.0f, light, eye_pos);
 				}
 			}
 		};
-
-		skygfx::SetDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
-		skygfx::SetCullMode(skygfx::CullMode::Front);
-		skygfx::SetSampler(skygfx::Sampler::Linear);
-		skygfx::SetTextureAddress(skygfx::TextureAddress::Wrap);
 
 		skygfx::SetBlendMode(skygfx::BlendStates::Opaque);
 
