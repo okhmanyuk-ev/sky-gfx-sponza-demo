@@ -433,6 +433,21 @@ int main()
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 
+	skygfx::ext::Commands draw_cmds;
+
+	for (const auto& [_material, meshes] : render_buffer.meshes)
+	{
+		skygfx::ext::SetColor(draw_cmds, _material->color);
+		skygfx::ext::SetColorTexture(draw_cmds, _material->color_texture.get());
+		skygfx::ext::SetNormalTexture(draw_cmds, _material->normal_texture.get());
+				
+		for (const auto& [mesh, draw_command]: meshes)
+		{
+			skygfx::ext::SetMesh(draw_cmds, mesh.get());
+			skygfx::ext::Draw(draw_cmds, draw_command);
+		}
+	}
+
 	while (!glfwWindowShouldClose(window))
 	{
 		ImGui_ImplGlfw_NewFrame();
@@ -465,19 +480,7 @@ int main()
 
 		auto draw_meshes = [&](const auto& light){
 			skygfx::ext::SetLight(cmds, light);
-
-			for (const auto& [_material, meshes] : render_buffer.meshes)
-			{
-				skygfx::ext::SetColor(cmds, _material->color);
-				skygfx::ext::SetColorTexture(cmds, _material->color_texture.get());
-				skygfx::ext::SetNormalTexture(cmds, _material->normal_texture.get());
-				
-				for (const auto& [mesh, draw_command]: meshes)
-				{
-					skygfx::ext::SetMesh(cmds, mesh.get());
-					skygfx::ext::Draw(cmds, draw_command);
-				}
-			}
+			skygfx::ext::InsertSubcommands(cmds, &draw_cmds);
 		};
 
 		skygfx::ext::Callback(cmds, [] {
