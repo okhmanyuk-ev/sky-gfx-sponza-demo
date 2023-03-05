@@ -347,8 +347,7 @@ void DrawGui(skygfx::ext::PerspectiveCamera& camera)
 
 int main()
 {
-	//auto backend_type = utils::ChooseBackendTypeViaConsole();
-	auto backend_type = skygfx::BackendType::D3D11;
+	auto backend_type = utils::ChooseBackendTypeViaConsole();
 
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
