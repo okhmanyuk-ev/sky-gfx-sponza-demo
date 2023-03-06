@@ -447,8 +447,25 @@ int main()
 		}
 	}
 
+	skygfx::ext::passes::Bloom bloom_pass;
+
+	std::optional<skygfx::RenderTarget> src_target;
+	std::optional<skygfx::RenderTarget> dst_target;
+
+	auto ensureTargetSize = [window = window](auto& target) {
+		int win_width;
+		int win_height;
+		glfwGetFramebufferSize(window, &win_width, &win_height);
+
+		if (!target.has_value() || target.value().getWidth() != win_width || target.value().getHeight() != win_height)
+			target.emplace(win_width, win_height);
+	};
+
 	while (!glfwWindowShouldClose(window))
 	{
+		ensureTargetSize(src_target);
+		ensureTargetSize(dst_target);
+
 		ImGui_ImplGlfw_NewFrame();
 
 		ImGui::NewFrame();
@@ -467,6 +484,7 @@ int main()
 			point_lights.push_back(moving_light.light);
 		}
 
+		skygfx::SetRenderTarget(src_target.value());
 		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
 
 		skygfx::SetDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
@@ -498,6 +516,22 @@ int main()
 		}
 
 		skygfx::ext::ExecuteCommands(cmds);
+
+		skygfx::SetBlendMode(skygfx::BlendStates::NonPremultiplied);
+		skygfx::SetDepthMode(std::nullopt);
+		skygfx::SetCullMode(skygfx::CullMode::None);
+
+		skygfx::SetRenderTarget(dst_target.value());
+		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
+
+		bloom_pass.execute(src_target.value(), dst_target.value());
+
+		skygfx::SetRenderTarget(std::nullopt);
+
+		skygfx::ext::ExecuteCommands({
+			skygfx::ext::commands::SetColorTexture{ &dst_target.value() },
+			skygfx::ext::commands::Draw{}
+		});
 
 		imgui.draw();
 
