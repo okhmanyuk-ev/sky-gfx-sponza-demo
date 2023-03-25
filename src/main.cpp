@@ -374,14 +374,14 @@ int main()
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	auto directional_light = skygfx::ext::DirectionalLight();
+	auto directional_light = skygfx::ext::effects::DirectionalLight();
 	directional_light.ambient = { 0.125f, 0.125f, 0.125f };
 	directional_light.diffuse = { 0.125f, 0.125f, 0.125f };
 	directional_light.specular = { 1.0f, 1.0f, 1.0f };
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto base_light = skygfx::ext::PointLight();
+	auto base_light = skygfx::ext::effects::PointLight();
 	base_light.shininess = 32.0f;
 	base_light.constant_attenuation = 0.0f;
 	base_light.linear_attenuation = 0.00128f;
@@ -409,7 +409,7 @@ int main()
 
 	struct MovingLight
 	{
-		skygfx::ext::PointLight light;
+		skygfx::ext::effects::PointLight light;
 		glm::vec3 begin;
 		glm::vec3 end;
 		float multiplier = 1.0f;
@@ -476,7 +476,7 @@ int main()
 
 		auto time = (float)glfwGetTime();
 
-		std::vector<skygfx::ext::PointLight> point_lights;
+		std::vector<skygfx::ext::effects::PointLight> point_lights;
 
 		for (auto& moving_light : moving_lights)
 		{
@@ -496,7 +496,7 @@ int main()
 		skygfx::ext::SetCamera(cmds, camera);
 
 		auto draw_meshes = [&](const auto& light){
-			skygfx::ext::SetLight(cmds, light);
+			skygfx::ext::SetEffect(cmds, light);
 			skygfx::ext::InsertSubcommands(cmds, &draw_cmds);
 		};
 
