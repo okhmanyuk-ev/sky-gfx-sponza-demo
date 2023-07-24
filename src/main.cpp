@@ -72,7 +72,8 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 		{
 			const auto& texture = model.textures.at(index);
 			const auto& image = model.images.at(texture.source);
-			textures_cache[index] = std::make_shared<skygfx::Texture>((uint32_t)image.width, (uint32_t)image.height, 4, (void*)image.image.data(), true);
+			textures_cache[index] = std::make_shared<skygfx::Texture>((uint32_t)image.width,
+				(uint32_t)image.height, skygfx::Format::Byte4, (void*)image.image.data(), true);
 		}
 
 		return textures_cache.at(index);
@@ -432,106 +433,61 @@ int main()
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 
-	skygfx::utils::Commands draw_cmds;
+	std::vector<skygfx::utils::Model> models;
 
-	for (const auto& [_material, meshes] : render_buffer.meshes)
+	for (const auto& [material, meshes] : render_buffer.meshes)
 	{
-		skygfx::utils::SetColor(draw_cmds, _material->color);
-		skygfx::utils::SetColorTexture(draw_cmds, _material->color_texture.get());
-		skygfx::utils::SetNormalTexture(draw_cmds, _material->normal_texture.get());
-				
 		for (const auto& [mesh, draw_command]: meshes)
 		{
-			skygfx::utils::SetMesh(draw_cmds, mesh.get());
-			skygfx::utils::Draw(draw_cmds, draw_command);
+			skygfx::utils::Model model;
+			model.mesh = mesh.get();
+			model.draw_command = draw_command;
+			model.color = material->color;
+			model.color_texture = material->color_texture.get();
+			model.normal_texture = material->normal_texture.get();
+			model.cull_mode = skygfx::CullMode::Front;
+			model.texture_address = skygfx::TextureAddress::Wrap;
+			model.depth_mode = skygfx::ComparisonFunc::LessEqual;
+			models.push_back(model);
 		}
 	}
 
-	skygfx::utils::passes::Bloom bloom_pass;
-
-	std::optional<skygfx::RenderTarget> src_target;
-	std::optional<skygfx::RenderTarget> dst_target;
-
-	auto ensureTargetSize = [window = window](auto& target) {
-		int win_width;
-		int win_height;
-		glfwGetFramebufferSize(window, &win_width, &win_height);
-
-		if (!target.has_value() || target.value().getWidth() != win_width || target.value().getHeight() != win_height)
-			target.emplace(win_width, win_height);
-	};
+	auto bloom_intensity = 2.0f;
+	auto bloom_threshold = 1.0f;
 
 	while (!glfwWindowShouldClose(window))
 	{
-		ensureTargetSize(src_target);
-		ensureTargetSize(dst_target);
-
 		ImGui_ImplGlfw_NewFrame();
 
 		ImGui::NewFrame();
 
 		DrawGui(camera);
 
+		ImGui::Begin("Settings");
+		ImGui::Separator();
+		ImGui::SliderFloat("Bloom Intensity", &bloom_intensity, 0.0f, 4.0f);
+		ImGui::SliderFloat("Bloom Threshold", &bloom_threshold, 0.0f, 1.0f);
+		ImGui::End();
+
 		UpdateCamera(window, camera);
 
 		auto time = (float)glfwGetTime();
 
-		std::vector<skygfx::utils::effects::PointLight> point_lights;
+		std::vector<skygfx::utils::Light> lights = { directional_light };
 
 		for (auto& moving_light : moving_lights)
 		{
 			moving_light.light.position = glm::lerp(moving_light.begin, moving_light.end, (glm::sin(time / moving_light.multiplier) + 1.0f) * 0.5f);
-			point_lights.push_back(moving_light.light);
+			lights.push_back(moving_light.light);
 		}
 
-		skygfx::SetRenderTarget(src_target.value());
-		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
+		auto src_target = skygfx::GetTemporaryRenderTarget();
 
-		skygfx::SetDepthMode(skygfx::DepthMode{ skygfx::ComparisonFunc::LessEqual });
-		skygfx::SetCullMode(skygfx::CullMode::Front);
-		skygfx::SetSampler(skygfx::Sampler::Linear);
-		skygfx::SetTextureAddress(skygfx::TextureAddress::Wrap);
+		skygfx::SetRenderTarget(*src_target);
+		skygfx::Clear();
 
-		skygfx::utils::Commands cmds;
-		skygfx::utils::SetCamera(cmds, camera);
-
-		auto draw_meshes = [&](const auto& light){
-			skygfx::utils::SetEffect(cmds, light);
-			skygfx::utils::InsertSubcommands(cmds, &draw_cmds);
-		};
-
-		skygfx::utils::Callback(cmds, [] {
-			skygfx::SetBlendMode(skygfx::BlendStates::Opaque);
-		});
-		
-		draw_meshes(directional_light);
-
-		skygfx::utils::Callback(cmds, [] {
-			skygfx::SetBlendMode(skygfx::BlendStates::Additive);
-		});
-
-		for (const auto& point_light : point_lights)
-		{
-			draw_meshes(point_light);
-		}
-
-		skygfx::utils::ExecuteCommands(cmds);
-
-		skygfx::SetBlendMode(skygfx::BlendStates::NonPremultiplied);
-		skygfx::SetDepthMode(std::nullopt);
-		skygfx::SetCullMode(skygfx::CullMode::None);
-
-		skygfx::SetRenderTarget(dst_target.value());
-		skygfx::Clear(glm::vec4{ 0.0f, 0.0f, 0.0f, 1.0f });
-
-		bloom_pass.execute(src_target.value(), dst_target.value());
-
-		skygfx::SetRenderTarget(std::nullopt);
-
-		skygfx::utils::ExecuteCommands({
-			skygfx::utils::commands::SetColorTexture{ &dst_target.value() },
-			skygfx::utils::commands::Draw{}
-		});
+		skygfx::utils::DrawScene(camera, models, lights);
+		skygfx::utils::passes::Bloom(src_target, nullptr, bloom_threshold, bloom_intensity);
 
 		imgui.draw();
 
