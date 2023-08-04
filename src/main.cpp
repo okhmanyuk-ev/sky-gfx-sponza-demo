@@ -49,8 +49,7 @@ struct Material
 
 struct RenderBuffer
 {
-	// TODO: remove unique_ptr and use move semantics for mesh
-	std::unordered_map<std::shared_ptr<Material>, std::vector<std::pair<std::unique_ptr<skygfx::utils::Mesh>, skygfx::utils::DrawCommand>>> meshes;
+	std::unordered_map<std::shared_ptr<Material>, std::vector<std::pair<skygfx::utils::Mesh, skygfx::utils::DrawCommand>>> meshes;
 };
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
@@ -166,10 +165,10 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				vertices.push_back(vertex);
 			}
 
-			auto mesh = std::make_unique<skygfx::utils::Mesh>();
-			mesh->setTopology(topology);
-			mesh->setIndices(indices);
-			mesh->setVertices(vertices);
+			auto mesh = skygfx::utils::Mesh();
+			mesh.setTopology(topology);
+			mesh.setIndices(indices);
+			mesh.setVertices(vertices);
 
 			auto draw_command = skygfx::utils::DrawIndexedVerticesCommand{
 				.index_count = (uint32_t)index_count,
@@ -433,14 +432,15 @@ int main()
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 
-	std::vector<skygfx::utils::Model> models;
+	std::vector<skygfx::utils::Model> models_with_normalmapping;
+	std::vector<skygfx::utils::Model> models_without_normalmapping;
 
 	for (const auto& [material, meshes] : render_buffer.meshes)
 	{
 		for (const auto& [mesh, draw_command]: meshes)
 		{
 			skygfx::utils::Model model;
-			model.mesh = mesh.get();
+			model.mesh = (skygfx::utils::Mesh*)&mesh;
 			model.draw_command = draw_command;
 			model.color = material->color;
 			model.color_texture = material->color_texture.get();
@@ -448,12 +448,18 @@ int main()
 			model.cull_mode = skygfx::CullMode::Front;
 			model.texture_address = skygfx::TextureAddress::Wrap;
 			model.depth_mode = skygfx::ComparisonFunc::LessEqual;
-			models.push_back(model);
+			models_with_normalmapping.push_back(model);
+
+			model.normal_texture = nullptr;
+			models_without_normalmapping.push_back(model);
 		}
 	}
 
 	auto bloom_intensity = 2.0f;
 	auto bloom_threshold = 1.0f;
+	bool normalmapping = true;
+	bool animate_lights = true;
+	float time = 0.0f;
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -467,11 +473,14 @@ int main()
 		ImGui::Separator();
 		ImGui::SliderFloat("Bloom Intensity", &bloom_intensity, 0.0f, 4.0f);
 		ImGui::SliderFloat("Bloom Threshold", &bloom_threshold, 0.0f, 1.0f);
+		ImGui::Checkbox("Normalmapping", &normalmapping);
+		ImGui::Checkbox("Animate Lights", &animate_lights);
 		ImGui::End();
 
 		UpdateCamera(window, camera);
 
-		auto time = (float)glfwGetTime();
+		if (animate_lights)
+			time = (float)glfwGetTime();
 
 		std::vector<skygfx::utils::Light> lights = { directional_light };
 
@@ -486,7 +495,7 @@ int main()
 		skygfx::SetRenderTarget(*src_target);
 		skygfx::Clear();
 
-		skygfx::utils::DrawScene(camera, models, lights);
+		skygfx::utils::DrawScene(camera, normalmapping ? models_with_normalmapping : models_without_normalmapping, lights);
 		skygfx::utils::passes::Bloom(src_target, nullptr, bloom_threshold, bloom_intensity);
 
 		imgui.draw();
