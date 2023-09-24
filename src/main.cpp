@@ -432,8 +432,7 @@ int main()
 
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 
-	std::vector<skygfx::utils::Model> models_with_normalmapping;
-	std::vector<skygfx::utils::Model> models_without_normalmapping;
+	std::vector<skygfx::utils::Model> models;
 
 	for (const auto& [material, meshes] : render_buffer.meshes)
 	{
@@ -448,16 +447,13 @@ int main()
 			model.cull_mode = skygfx::CullMode::Front;
 			model.texture_address = skygfx::TextureAddress::Wrap;
 			model.depth_mode = skygfx::ComparisonFunc::LessEqual;
-			models_with_normalmapping.push_back(model);
-
-			model.normal_texture = nullptr;
-			models_without_normalmapping.push_back(model);
+			models.push_back(model);
 		}
 	}
 
 	auto bloom_intensity = 2.0f;
 	auto bloom_threshold = 1.0f;
-	bool normalmapping = true;
+	skygfx::utils::DrawSceneOptions options;
 	bool animate_lights = true;
 	float time = 0.0f;
 
@@ -473,7 +469,8 @@ int main()
 		ImGui::Separator();
 		ImGui::SliderFloat("Bloom Intensity", &bloom_intensity, 0.0f, 4.0f);
 		ImGui::SliderFloat("Bloom Threshold", &bloom_threshold, 0.0f, 1.0f);
-		ImGui::Checkbox("Normalmapping", &normalmapping);
+		ImGui::Checkbox("Textures", &options.textures);
+		ImGui::Checkbox("Normal Mapping", &options.normal_mapping);
 		ImGui::Checkbox("Animate Lights", &animate_lights);
 		ImGui::End();
 
@@ -495,7 +492,7 @@ int main()
 		skygfx::SetRenderTarget(*src_target);
 		skygfx::Clear();
 
-		skygfx::utils::DrawScene(camera, normalmapping ? models_with_normalmapping : models_without_normalmapping, lights);
+		skygfx::utils::DrawScene(camera, models, lights, options);
 		skygfx::utils::passes::Bloom(src_target, nullptr, bloom_threshold, bloom_intensity);
 
 		imgui.draw();
