@@ -487,7 +487,7 @@ int main()
 			lights.push_back(moving_light.light);
 		}
 
-		auto src_target = skygfx::GetTemporaryRenderTarget();
+		auto src_target = skygfx::AcquireTransientRenderTarget();
 
 		skygfx::SetRenderTarget(*src_target);
 		skygfx::Clear();
