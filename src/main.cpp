@@ -374,14 +374,14 @@ int main()
 
 	auto render_buffer = BuildRenderBuffer(model);
 
-	auto directional_light = skygfx::utils::effects::DirectionalLight();
+	auto directional_light = skygfx::utils::DirectionalLight();
 	directional_light.ambient = { 0.125f, 0.125f, 0.125f };
 	directional_light.diffuse = { 0.125f, 0.125f, 0.125f };
 	directional_light.specular = { 1.0f, 1.0f, 1.0f };
 	directional_light.shininess = 16.0f;
 	directional_light.direction = { 0.5f, -1.0f, 0.5f };
 
-	auto base_light = skygfx::utils::effects::PointLight();
+	auto base_light = skygfx::utils::PointLight();
 	base_light.shininess = 32.0f;
 	base_light.constant_attenuation = 0.0f;
 	base_light.linear_attenuation = 0.00128f;
@@ -409,7 +409,7 @@ int main()
 
 	struct MovingLight
 	{
-		skygfx::utils::effects::PointLight light;
+		skygfx::utils::PointLight light;
 		glm::vec3 begin;
 		glm::vec3 end;
 		float multiplier = 1.0f;
@@ -457,6 +457,9 @@ int main()
 	bool animate_lights = true;
 	float time = 0.0f;
 
+	StageViewer stage_viewer;
+	skygfx::utils::SetStageViewer(&stage_viewer);
+
 	while (!glfwWindowShouldClose(window))
 	{
 		ImGui_ImplGlfw_NewFrame();
@@ -469,10 +472,20 @@ int main()
 		ImGui::Separator();
 		ImGui::SliderFloat("Bloom Intensity", &bloom_intensity, 0.0f, 4.0f);
 		ImGui::SliderFloat("Bloom Threshold", &bloom_threshold, 0.0f, 1.0f);
-		ImGui::Checkbox("Textures", &options.textures);
-		ImGui::Checkbox("Normal Mapping", &options.normal_mapping);
+		ImGui::Checkbox("Textures", &options.use_color_textures);
+		ImGui::Checkbox("Normal Mapping", &options.use_normal_textures);
 		ImGui::Checkbox("Animate Lights", &animate_lights);
+		ImGui::Separator();
+		if (ImGui::RadioButton("Forward Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading))
+			options.technique = skygfx::utils::DrawSceneOptions::Technique::ForwardShading;
+		if (ImGui::RadioButton("Deferred Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::DeferredShading))
+			options.technique = skygfx::utils::DrawSceneOptions::Technique::DeferredShading;
 		ImGui::End();
+
+		if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_V)))
+			options.technique = options.technique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading ?
+				skygfx::utils::DrawSceneOptions::Technique::DeferredShading :
+				skygfx::utils::DrawSceneOptions::Technique::ForwardShading;
 
 		UpdateCamera(window, camera);
 
@@ -489,12 +502,10 @@ int main()
 
 		auto src_target = skygfx::AcquireTransientRenderTarget();
 
-		skygfx::SetRenderTarget(*src_target);
-		skygfx::Clear();
-
-		skygfx::utils::DrawScene(camera, models, lights, options);
+		skygfx::utils::DrawScene(src_target, camera, models, lights, options);
 		skygfx::utils::passes::Bloom(src_target, nullptr, bloom_threshold, bloom_intensity);
 
+		stage_viewer.show();
 		imgui.draw();
 
 		skygfx::Present();
