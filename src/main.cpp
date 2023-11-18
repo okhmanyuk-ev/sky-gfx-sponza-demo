@@ -39,6 +39,26 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
+static auto gTechnique = skygfx::utils::DrawSceneOptions::Technique::DeferredShading;
+static auto gNormalMapping = true;
+
+void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (action != GLFW_PRESS && action != GLFW_REPEAT)
+		return;
+
+	if (key == GLFW_KEY_1)
+	{
+		gTechnique = gTechnique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading ?
+			skygfx::utils::DrawSceneOptions::Technique::DeferredShading :
+			skygfx::utils::DrawSceneOptions::Technique::ForwardShading;
+	}
+	else if (key == GLFW_KEY_2)
+	{
+		gNormalMapping = !gNormalMapping;
+	}
+}
+
 struct Material
 {
 	std::shared_ptr<skygfx::Texture> color_texture;
@@ -49,7 +69,16 @@ struct Material
 
 struct RenderBuffer
 {
-	std::unordered_map<std::shared_ptr<Material>, std::vector<std::pair<skygfx::utils::Mesh, skygfx::utils::DrawCommand>>> meshes;
+	struct DrawData
+	{
+		skygfx::utils::Mesh::Vertices vertices; // for normals debug
+		skygfx::utils::Mesh::Indices indices; // for normals debug
+
+		skygfx::utils::Mesh mesh;
+		skygfx::utils::DrawCommand draw_command;
+	};
+
+	std::unordered_map<std::shared_ptr<Material>, std::vector<DrawData>> meshes;
 };
 
 RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
@@ -133,9 +162,22 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			const auto& texcoord_buffer_view = model.bufferViews.at(texcoord_buffer_accessor.bufferView);
 			const auto& texcoord_buffer = model.buffers.at(texcoord_buffer_view.buffer);
 
+			if (!primitive.attributes.contains("TANGENT"))
+				continue;
+
+			const auto& tangents_buffer_accessor = model.accessors.at(primitive.attributes.at("TANGENT"));
+			const auto& tangents_buffer_view = model.bufferViews.at(tangents_buffer_accessor.bufferView);
+			const auto& tangents_buffer = model.buffers.at(tangents_buffer_view.buffer);
+
+			//const auto& bitangents_buffer_accessor = model.accessors.at(primitive.attributes.at("BITANGENT"));
+			//const auto& bitangents_buffer_view = model.bufferViews.at(bitangents_buffer_accessor.bufferView);
+			//const auto& bitangents_buffer = model.buffers.at(bitangents_buffer_view.buffer);
+
 			auto positions_ptr = (glm::vec3*)(((size_t)positions_buffer.data.data()) + positions_buffer_view.byteOffset);
-			auto normal_ptr = (glm::vec3*)(((size_t)normal_buffer.data.data()) + normal_buffer_view.byteOffset);
 			auto texcoord_ptr = (glm::vec2*)(((size_t)texcoord_buffer.data.data()) + texcoord_buffer_view.byteOffset);
+			auto normal_ptr = (glm::vec3*)(((size_t)normal_buffer.data.data()) + normal_buffer_view.byteOffset);
+			auto tangents_ptr = (glm::vec3*)(((size_t)tangents_buffer.data.data()) + tangents_buffer_view.byteOffset);
+			//auto bitangents_ptr = (glm::vec3*)(((size_t)bitangents_buffer.data.data()) + bitangents_buffer_view.byteOffset);
 
 			auto indices = skygfx::utils::Mesh::Indices();
 
@@ -160,7 +202,9 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				vertex.pos = positions_ptr[i];
 				vertex.normal = normal_ptr[i];
 				vertex.texcoord = texcoord_ptr[i];
-				vertex.color = { 1.0f, 1.0f, 1.0f, 1.0f };
+				vertex.color = { 1.0f, 1.0f, 1.0f, 1.0f }; // TODO: colors_ptr[i]
+				vertex.tangent = tangents_ptr[i];
+				//vertex.bitangent = bitangents_ptr[i];
 
 				vertices.push_back(vertex);
 			}
@@ -192,7 +236,14 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 				baseColorFactor.at(3)
 			};
 
-			result.meshes[_material].push_back({ std::move(mesh), draw_command });
+			auto draw_data = RenderBuffer::DrawData{
+				.vertices = std::move(vertices),
+				.indices = std::move(indices),
+				.mesh = std::move(mesh),
+				.draw_command = draw_command
+			};
+
+			result.meshes[_material].push_back(std::move(draw_data));
 		}
 		// TODO: dont forget to draw childrens of node
 	}
@@ -305,7 +356,39 @@ void UpdateCamera(GLFWwindow* window, skygfx::utils::PerspectiveCamera& camera)
 	}
 }
 
-void DrawGui(skygfx::utils::PerspectiveCamera& camera)
+template<typename T>
+std::string GetPosteffectName()
+{
+	static_assert(sizeof(T) == -1, "GetPosteffectName<T> must be specialized for T");
+	return "";
+}
+
+template<>
+std::string GetPosteffectName<skygfx::utils::DrawSceneOptions::GrayscalePosteffect>() { return "Grayscale"; }
+
+template<>
+std::string GetPosteffectName<skygfx::utils::DrawSceneOptions::BloomPosteffect>() { return "Bloom"; }
+
+template<>
+std::string GetPosteffectName<skygfx::utils::DrawSceneOptions::GaussianBlurPosteffect>() { return "Gaussian Blur"; }
+
+void DrawPosteffectOptions(skygfx::utils::DrawSceneOptions::GrayscalePosteffect& effect, int index)
+{
+	ImGui::SliderFloat(("Intensity##" + std::to_string(index)).c_str(), &effect.intensity, 0.0f, 1.0f);
+}
+
+void DrawPosteffectOptions(skygfx::utils::DrawSceneOptions::BloomPosteffect& effect, int index)
+{
+	ImGui::SliderFloat(("Threshold##" + std::to_string(index)).c_str(), &effect.threshold, 0.0f, 1.0f);
+	ImGui::SliderFloat(("Intensity##" + std::to_string(index)).c_str(), &effect.intensity, 0.0f, 10.0f);
+}
+
+void DrawPosteffectOptions(skygfx::utils::DrawSceneOptions::GaussianBlurPosteffect& effect, int index)
+{
+}
+
+void DrawGui(skygfx::utils::PerspectiveCamera& camera,
+	skygfx::utils::DrawSceneOptions& options, bool& animate_lights, bool& show_normals)
 {
 	const int ImGuiWindowFlags_Overlay = ImGuiWindowFlags_NoTitleBar |
 		ImGuiWindowFlags_NoResize |
@@ -341,8 +424,117 @@ void DrawGui(skygfx::utils::PerspectiveCamera& camera)
 	ImGui::SliderAngle("Pitch##1", &camera.pitch, -89.0f, 89.0f);
 	ImGui::SliderAngle("Yaw##1", &camera.yaw, -180.0f, 180.0f);
 	ImGui::DragFloat3("Position##1", (float*)&camera.position);
+	ImGui::Separator();
+	ImGui::Checkbox("Textures", &options.use_color_textures);
+	ImGui::Checkbox("Normal Mapping", &gNormalMapping);
+	ImGui::SliderFloat("Mipmap bias", &options.mipmap_bias, -8.0f, 8.0f);
+	ImGui::Checkbox("Animate Lights", &animate_lights);
+	ImGui::Checkbox("Show Normals", &show_normals);
+	ImGui::Separator();
+	if (ImGui::RadioButton("Forward Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading))
+		gTechnique = skygfx::utils::DrawSceneOptions::Technique::ForwardShading;
+	if (ImGui::RadioButton("Deferred Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::DeferredShading))
+		gTechnique = skygfx::utils::DrawSceneOptions::Technique::DeferredShading;
+	ImGui::Separator();
+
+	for (int i = 0; i < options.posteffects.size(); i++)
+	{
+		std::visit(cases{
+			[&](auto& posteffect) {
+				using T = std::decay_t<decltype(posteffect)>;
+				auto name = GetPosteffectName<T>();
+				ImGui::Text("%s", name.c_str());
+				DrawPosteffectOptions(posteffect, i);
+			}
+		}, options.posteffects.at(i));
+
+		ImGui::SameLine();
+		if (ImGui::Button(("Remove##" + std::to_string(i)).c_str()))
+		{
+			options.posteffects.erase(options.posteffects.begin() + i);
+		}
+
+		ImGui::Separator();
+	}
+
+	static const std::vector<skygfx::utils::DrawSceneOptions::Posteffect> AvailablePosteffects = {
+		skygfx::utils::DrawSceneOptions::GrayscalePosteffect{},
+		skygfx::utils::DrawSceneOptions::BloomPosteffect{},
+		skygfx::utils::DrawSceneOptions::GaussianBlurPosteffect{},
+	};
+
+	for (const auto& posteffect : AvailablePosteffects)
+	{
+		std::visit(cases{
+			[&](auto& posteffect) {
+				using T = std::decay_t<decltype(posteffect)>;
+				auto name = GetPosteffectName<T>();
+
+				if (ImGui::Button(("Add " + name + " Posteffect").c_str()))
+					options.posteffects.emplace_back(posteffect);
+			}
+		}, posteffect);
+	}
 
 	ImGui::End();
+}
+
+skygfx::utils::Mesh CreateNormalsDebugMesh(const RenderBuffer& render_buffer)
+{
+	skygfx::utils::MeshBuilder mesh_builder;
+
+	for (const auto& [material, draw_datas] : render_buffer.meshes)
+	{
+		for (const auto& draw_data : draw_datas)
+		{
+			auto draw_vertex = [&](const skygfx::utils::Mesh::Vertex& vertex) {
+				mesh_builder.begin(skygfx::utils::MeshBuilder::Mode::Lines);
+				mesh_builder.vertex({ .pos = vertex.pos, .color = { 0.0f, 1.0f, 0.0f, 1.0f } });
+				mesh_builder.vertex({ .pos = vertex.pos + (vertex.normal * 25.0f), .color = { 0.0f, 1.0f, 0.0f, 1.0f } });
+				mesh_builder.end();
+			};
+
+			std::visit(cases{
+				[&](const skygfx::utils::DrawVerticesCommand& draw) {
+					auto vertex_count = draw.vertex_count.value_or((uint32_t)draw_data.vertices.size());
+					auto vertex_offset = draw.vertex_offset;
+
+					for (uint32_t i = vertex_offset; i < vertex_count; i++)
+					{
+						const auto& vertex = draw_data.vertices.at(i);
+						draw_vertex(vertex);
+					}
+				},
+				[&](const skygfx::utils::DrawIndexedVerticesCommand& draw) {
+					auto index_count = draw.index_count.value_or((uint32_t)draw_data.indices.size());
+					auto index_offset = draw.index_offset;
+
+					for (uint32_t i = index_offset; i < index_count; i++)
+					{
+						auto index = draw_data.indices.at(i);
+						const auto& vertex = draw_data.vertices.at(index);
+						draw_vertex(vertex);
+					}
+				}
+			}, draw_data.draw_command);
+		}
+	}
+	
+	skygfx::utils::Mesh mesh;
+	mesh_builder.setToMesh(mesh);
+
+	return mesh;
+}
+
+void DrawNormals(const skygfx::utils::PerspectiveCamera& camera, const RenderBuffer& render_buffer)
+{
+	static auto mesh = CreateNormalsDebugMesh(render_buffer);;
+
+	skygfx::utils::ExecuteCommands({
+		skygfx::utils::commands::SetCamera(camera),
+		skygfx::utils::commands::SetMesh(&mesh),
+		skygfx::utils::commands::Draw{}
+	});
 }
 
 int main()
@@ -361,6 +553,7 @@ int main()
 	});
 	
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
+	glfwSetKeyCallback(window, KeyCallback);
 
 	tinygltf::Model model;
 	tinygltf::TinyGLTF loader;
@@ -434,13 +627,13 @@ int main()
 
 	std::vector<skygfx::utils::Model> models;
 
-	for (const auto& [material, meshes] : render_buffer.meshes)
+	for (const auto& [material, draw_datas] : render_buffer.meshes)
 	{
-		for (const auto& [mesh, draw_command]: meshes)
+		for (const auto& draw_data: draw_datas)
 		{
 			skygfx::utils::Model model;
-			model.mesh = (skygfx::utils::Mesh*)&mesh;
-			model.draw_command = draw_command;
+			model.mesh = (skygfx::utils::Mesh*)&draw_data.mesh;
+			model.draw_command = draw_data.draw_command;
 			model.color = material->color;
 			model.color_texture = material->color_texture.get();
 			model.normal_texture = material->normal_texture.get();
@@ -451,10 +644,14 @@ int main()
 		}
 	}
 
-	auto bloom_intensity = 2.0f;
-	auto bloom_threshold = 1.0f;
-	skygfx::utils::DrawSceneOptions options;
+	skygfx::utils::DrawSceneOptions options = {
+		.posteffects = {
+			skygfx::utils::DrawSceneOptions::BloomPosteffect{}
+		}
+	};
+
 	bool animate_lights = true;
+	bool show_normals = false;
 	float time = 0.0f;
 
 	StageViewer stage_viewer;
@@ -466,28 +663,10 @@ int main()
 
 		ImGui::NewFrame();
 
-		DrawGui(camera);
+		DrawGui(camera, options, animate_lights, show_normals);
 
-		ImGui::Begin("Settings");
-		ImGui::Separator();
-		ImGui::SliderFloat("Bloom Intensity", &bloom_intensity, 0.0f, 4.0f);
-		ImGui::SliderFloat("Bloom Threshold", &bloom_threshold, 0.0f, 1.0f);
-		ImGui::Separator();
-		ImGui::Checkbox("Textures", &options.use_color_textures);
-		ImGui::Checkbox("Normal Mapping", &options.use_normal_textures);
-		ImGui::SliderFloat("Mipmap bias", &options.mipmap_bias, -8.0f, 8.0f);
-		ImGui::Checkbox("Animate Lights", &animate_lights);
-		ImGui::Separator();
-		if (ImGui::RadioButton("Forward Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading))
-			options.technique = skygfx::utils::DrawSceneOptions::Technique::ForwardShading;
-		if (ImGui::RadioButton("Deferred Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::DeferredShading))
-			options.technique = skygfx::utils::DrawSceneOptions::Technique::DeferredShading;
-		ImGui::End();
-
-		if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_V)))
-			options.technique = options.technique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading ?
-				skygfx::utils::DrawSceneOptions::Technique::DeferredShading :
-				skygfx::utils::DrawSceneOptions::Technique::ForwardShading;
+		options.technique = gTechnique;
+		options.use_normal_textures = gNormalMapping;
 
 		UpdateCamera(window, camera);
 
@@ -502,10 +681,10 @@ int main()
 			lights.push_back(moving_light.light);
 		}
 
-		auto src_target = skygfx::AcquireTransientRenderTarget();
-
-		skygfx::utils::DrawScene(src_target, camera, models, lights, options);
-		skygfx::utils::passes::Bloom(src_target, nullptr, bloom_threshold, bloom_intensity);
+		skygfx::utils::DrawScene(nullptr, camera, models, lights, options);
+		
+		if (show_normals)
+			DrawNormals(camera, render_buffer);
 
 		stage_viewer.show();
 		imgui.draw();
