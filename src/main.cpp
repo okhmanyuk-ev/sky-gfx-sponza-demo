@@ -472,8 +472,10 @@ int main()
 		ImGui::Separator();
 		ImGui::SliderFloat("Bloom Intensity", &bloom_intensity, 0.0f, 4.0f);
 		ImGui::SliderFloat("Bloom Threshold", &bloom_threshold, 0.0f, 1.0f);
+		ImGui::Separator();
 		ImGui::Checkbox("Textures", &options.use_color_textures);
 		ImGui::Checkbox("Normal Mapping", &options.use_normal_textures);
+		ImGui::SliderFloat("Mipmap bias", &options.mipmap_bias, -8.0f, 8.0f);
 		ImGui::Checkbox("Animate Lights", &animate_lights);
 		ImGui::Separator();
 		if (ImGui::RadioButton("Forward Shading", options.technique == skygfx::utils::DrawSceneOptions::Technique::ForwardShading))
