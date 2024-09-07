@@ -73,9 +73,9 @@ struct RenderBuffer
 	{
 		skygfx::utils::Mesh::Vertices vertices; // for normals debug
 		skygfx::utils::Mesh::Indices indices; // for normals debug
-
+		skygfx::Topology topology;
 		skygfx::utils::Mesh mesh;
-		skygfx::utils::DrawCommand draw_command;
+		skygfx::utils::commands::DrawMesh::DrawCommand draw_command;
 	};
 
 	std::unordered_map<std::shared_ptr<Material>, std::vector<DrawData>> meshes;
@@ -95,13 +95,13 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 	auto get_or_create_texture = [&](int index) -> std::shared_ptr<skygfx::Texture> {
 		if (index == -1)
 			return nullptr;
-			
+
 		if (!textures_cache.contains(index))
 		{
 			const auto& texture = model.textures.at(index);
 			const auto& image = model.images.at(texture.source);
 			textures_cache[index] = std::make_shared<skygfx::Texture>((uint32_t)image.width,
-				(uint32_t)image.height, skygfx::Format::Byte4, (void*)image.image.data(), true);
+				(uint32_t)image.height, skygfx::PixelFormat::RGBA8UNorm, (void*)image.image.data(), true);
 		}
 
 		return textures_cache.at(index);
@@ -146,7 +146,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			auto index_buf_size = index_buffer_view.byteLength;
 			auto index_buf_stride = IndexStride.at(index_buffer_accessor.componentType);
 			auto index_buf_data = (void*)((size_t)index_buffer.data.data() + index_buffer_view.byteOffset);
-			
+
 			auto index_count = index_buffer_accessor.count;
 			auto index_offset = index_buffer_accessor.byteOffset / 2;
 
@@ -210,11 +210,10 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			}
 
 			auto mesh = skygfx::utils::Mesh();
-			mesh.setTopology(topology);
 			mesh.setIndices(indices);
 			mesh.setVertices(vertices);
 
-			auto draw_command = skygfx::utils::DrawIndexedVerticesCommand{
+			auto draw_command = skygfx::utils::commands::DrawMesh::DrawIndexedVerticesCommand{
 				.index_count = (uint32_t)index_count,
 				.index_offset = (uint32_t)index_offset
 			};
@@ -239,6 +238,7 @@ RenderBuffer BuildRenderBuffer(const tinygltf::Model& model)
 			auto draw_data = RenderBuffer::DrawData{
 				.vertices = std::move(vertices),
 				.indices = std::move(indices),
+				.topology = topology,
 				.mesh = std::move(mesh),
 				.draw_command = draw_command
 			};
@@ -262,9 +262,9 @@ void UpdateCamera(GLFWwindow* window, skygfx::utils::PerspectiveCamera& camera)
 
 		auto dx = x - cursor_saved_pos_x;
 		auto dy = y - cursor_saved_pos_y;
-		
+
 		const auto sensitivity = 0.25f;
-	
+
 		dx *= sensitivity;
 		dy *= sensitivity;
 
@@ -308,19 +308,19 @@ void UpdateCamera(GLFWwindow* window, skygfx::utils::PerspectiveCamera& camera)
 	}
 
 	auto angles_speed = dtime * 100.0f;
-	
+
 	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 		camera.yaw += glm::radians(static_cast<float>(angles_speed));
-	
+
 	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
 		camera.yaw -= glm::radians(static_cast<float>(angles_speed));
-	
+
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
 		camera.pitch += glm::radians(static_cast<float>(angles_speed));
-	
+
 	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
 		camera.pitch -= glm::radians(static_cast<float>(angles_speed));
-		
+
 	constexpr auto limit = glm::pi<float>() / 2.0f - 0.01f;
 
 	camera.pitch = fmaxf(-limit, camera.pitch);
@@ -387,6 +387,8 @@ void DrawPosteffectOptions(skygfx::utils::DrawSceneOptions::GaussianBlurPosteffe
 {
 }
 
+static int gDrawcalls = 0;
+
 void DrawGui(skygfx::utils::PerspectiveCamera& camera,
 	skygfx::utils::DrawSceneOptions& options, bool& animate_lights, bool& show_normals)
 {
@@ -420,6 +422,7 @@ void DrawGui(skygfx::utils::PerspectiveCamera& camera,
 	}
 
 	ImGui::Text("FPS: %d", fps);
+	ImGui::Text("Drawcalls: %d", gDrawcalls);
 	ImGui::Separator();
 	ImGui::SliderAngle("Pitch##1", &camera.pitch, -89.0f, 89.0f);
 	ImGui::SliderAngle("Yaw##1", &camera.yaw, -180.0f, 180.0f);
@@ -495,7 +498,7 @@ skygfx::utils::Mesh CreateNormalsDebugMesh(const RenderBuffer& render_buffer)
 			};
 
 			std::visit(cases{
-				[&](const skygfx::utils::DrawVerticesCommand& draw) {
+				[&](const skygfx::utils::commands::DrawMesh::DrawVerticesCommand& draw) {
 					auto vertex_count = draw.vertex_count.value_or((uint32_t)draw_data.vertices.size());
 					auto vertex_offset = draw.vertex_offset;
 
@@ -505,7 +508,7 @@ skygfx::utils::Mesh CreateNormalsDebugMesh(const RenderBuffer& render_buffer)
 						draw_vertex(vertex);
 					}
 				},
-				[&](const skygfx::utils::DrawIndexedVerticesCommand& draw) {
+				[&](const skygfx::utils::commands::DrawMesh::DrawIndexedVerticesCommand& draw) {
 					auto index_count = draw.index_count.value_or((uint32_t)draw_data.indices.size());
 					auto index_offset = draw.index_offset;
 
@@ -519,7 +522,7 @@ skygfx::utils::Mesh CreateNormalsDebugMesh(const RenderBuffer& render_buffer)
 			}, draw_data.draw_command);
 		}
 	}
-	
+
 	skygfx::utils::Mesh mesh;
 	mesh_builder.setToMesh(mesh);
 
@@ -533,7 +536,7 @@ void DrawNormals(const skygfx::utils::PerspectiveCamera& camera, const RenderBuf
 	skygfx::utils::ExecuteCommands({
 		skygfx::utils::commands::SetCamera(camera),
 		skygfx::utils::commands::SetMesh(&mesh),
-		skygfx::utils::commands::Draw{}
+		skygfx::utils::commands::DrawMesh{}
 	});
 }
 
@@ -551,7 +554,7 @@ int main()
 	glfwSetFramebufferSizeCallback(window, [](GLFWwindow* window, int width, int height) {
 		skygfx::Resize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 	});
-	
+
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
 	glfwSetKeyCallback(window, KeyCallback);
 
@@ -579,7 +582,7 @@ int main()
 	base_light.constant_attenuation = 0.0f;
 	base_light.linear_attenuation = 0.00128f;
 	base_light.quadratic_attenuation = 0.0f;
-	
+
 	auto red_light = base_light;
 	red_light.ambient = { 0.0625f, 0.0f, 0.0f };
 	red_light.diffuse = { 0.5f, 0.0f, 0.0f };
@@ -613,7 +616,7 @@ int main()
 		{ red_light, { 1200.0f, 256.0f, -36.0f }, { -1200.0f, 256.0f, -36.0f }, 4.0f },
 		{ green_light, { 1200.0f, 256.0f, -36.0f }, { -1200.0f, 256.0f, -36.0f }, 3.0f },
 		{ blue_light, { 1200.0f, 256.0f, -36.0f }, { -1200.0f, 256.0f, -36.0f }, 2.0f },
-		
+
 		// second floor
 		{ green_light, { 1100.0f, 550.0f, 400.0f }, { 1100.0f, 550.0f, -400.0f }, 1.0f },
 		{ red_light, { -1200.0f, 550.0f, -400.0f }, { -1200.0f, 550.0f, 400.0f }, 2.0f },
@@ -682,20 +685,21 @@ int main()
 		}
 
 		skygfx::utils::DrawScene(nullptr, camera, models, lights, options);
-		
+
 		if (show_normals)
 			DrawNormals(camera, render_buffer);
 
 		stage_viewer.show();
 		imgui.draw();
 
-		skygfx::Present();
+		auto present_result = skygfx::Present();
+		gDrawcalls = present_result.drawcalls;
 
 		glfwPollEvents();
 	}
-	
+
 	ImGui_ImplGlfw_Shutdown();
-	
+
 	skygfx::Finalize();
 
 	glfwTerminate();
